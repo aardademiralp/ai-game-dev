@@ -1,6 +1,8 @@
 using UnityEngine;
 using GameDevStudio.Camera;
 using GameDevStudio.Office;
+using GameDevStudio.Economy;
+using GameDevStudio.UI;
 
 namespace GameDevStudio.Core
 {
@@ -8,10 +10,11 @@ namespace GameDevStudio.Core
     /// Bootstraps the game scene at runtime.
     /// Attach to any GameObject in MainScene and hit Play.
     ///
-    /// Responsibilities (Aşama 1 scope):
+    /// Responsibilities:
     ///   1. Build a simple office floor from primitives
     ///   2. Attach IsometricCameraController to Main Camera if missing
     ///   3. Centre the camera focus on the floor
+    ///   4. Initialize Grid, Economy, Time, and Debug HUD systems
     /// </summary>
     public class SceneInitializer : MonoBehaviour
     {
@@ -34,6 +37,9 @@ namespace GameDevStudio.Core
             BuildOfficeFloor();
             SetupCamera();
             SetupGrid();         // Aşama 2 — grid + input
+            SetupEconomy();      // Aşama 4 — para sistemi
+            SetupGameTime();     // Aşama 4 — zaman sistemi
+            SetupDebugHUD();     // Aşama 4 — debug UI
         }
 
         // ── Floor ─────────────────────────────────────────────
@@ -122,6 +128,39 @@ namespace GameDevStudio.Core
             Debug.Log("[SceneInitializer] GridSystem created from scratch.");
         }
 
+
+        // ── Economy System ──────────────────────────────────
+        private void SetupEconomy()
+        {
+            if (MoneyManager.Instance == null && FindFirstObjectByType<MoneyManager>() == null)
+            {
+                GameObject go = new GameObject("EconomySystem");
+                go.AddComponent<MoneyManager>();
+                Debug.Log("[SceneInitializer] EconomySystem created.");
+            }
+        }
+
+        // ── Time System ─────────────────────────────────────
+        private void SetupGameTime()
+        {
+            if (GameTimeManager.Instance == null && FindFirstObjectByType<GameTimeManager>() == null)
+            {
+                GameObject go = new GameObject("TimeSystem");
+                go.AddComponent<GameTimeManager>();
+                Debug.Log("[SceneInitializer] TimeSystem created.");
+            }
+        }
+
+        // ── Debug UI System ─────────────────────────────────
+        private void SetupDebugHUD()
+        {
+            if (FindFirstObjectByType<DebugHUD>() == null)
+            {
+                GameObject go = new GameObject("DebugHUD");
+                go.AddComponent<DebugHUD>();
+                Debug.Log("[SceneInitializer] DebugHUD created.");
+            }
+        }
 
         // ── Helpers ───────────────────────────────────────────
         private static void SetColor(GameObject go, Color color)

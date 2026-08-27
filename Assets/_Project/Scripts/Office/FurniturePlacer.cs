@@ -37,7 +37,7 @@ namespace GameDevStudio.Office
 
         // ── Input ─────────────────────────────────────────────────────────
         private InputAction _mousePos, _lmb, _rmb;
-        private InputAction _key1, _key2, _key3, _keyR, _keyEsc;
+        private InputAction _key1, _key2, _key3, _keyR, _keyEsc, _keyB;
 
         // ── Ground plane (same Y=0 as GridInputHandler) ───────────────────
         private const float GroundY = 0f;
@@ -55,10 +55,11 @@ namespace GameDevStudio.Office
             _key3     = new InputAction("FP_Key3", InputActionType.Button, "<Keyboard>/3");
             _keyR     = new InputAction("FP_KeyR", InputActionType.Button, "<Keyboard>/r");
             _keyEsc   = new InputAction("FP_Esc",  InputActionType.Button, "<Keyboard>/escape");
+            _keyB     = new InputAction("FP_KeyB", InputActionType.Button, "<Keyboard>/b");
 
             _mousePos.Enable(); _lmb.Enable();  _rmb.Enable();
             _key1.Enable();     _key2.Enable(); _key3.Enable();
-            _keyR.Enable();     _keyEsc.Enable();
+            _keyR.Enable();     _keyEsc.Enable(); _keyB.Enable();
         }
 
         private void Start()
@@ -71,7 +72,7 @@ namespace GameDevStudio.Office
         {
             _mousePos?.Dispose(); _lmb?.Dispose(); _rmb?.Dispose();
             _key1?.Dispose();     _key2?.Dispose(); _key3?.Dispose();
-            _keyR?.Dispose();     _keyEsc?.Dispose();
+            _keyR?.Dispose();     _keyEsc?.Dispose(); _keyB?.Dispose();
 
             if (_previewGo != null) Destroy(_previewGo);
             IsPlacing = false;
@@ -101,9 +102,20 @@ namespace GameDevStudio.Office
         // ── Selection ─────────────────────────────────────────────────────
         private void HandleSelectionKeys()
         {
-            if (_key1.WasPressedThisFrame()) BeginPlacement(0);
-            else if (_key2.WasPressedThisFrame()) BeginPlacement(1);
-            else if (_key3.WasPressedThisFrame()) BeginPlacement(2);
+            if (_keyB != null && _keyB.WasPressedThisFrame())
+            {
+                if (IsPlacing) CancelPlacement();
+                else BeginPlacement(0);
+                return;
+            }
+
+            bool shiftPressed = Keyboard.current != null && Keyboard.current.shiftKey.isPressed;
+            if (IsPlacing || shiftPressed)
+            {
+                if (_key1.WasPressedThisFrame()) BeginPlacement(0);
+                else if (_key2.WasPressedThisFrame()) BeginPlacement(1);
+                else if (_key3.WasPressedThisFrame()) BeginPlacement(2);
+            }
         }
 
         private void BeginPlacement(int catalogIndex)
@@ -218,8 +230,18 @@ namespace GameDevStudio.Office
             GetFootprint(out int fw, out int fh);
             if (!CanPlace(gx, gz, fw, fh))
             {
-                Debug.Log("[FurniturePlacer] Cannot place — cells occupied or out of bounds.");
+                Debug.Log("[FurniturePlacer] Cannot place — cells occupied, out of bounds, or insufficient funds.");
                 return;
+            }
+
+            // Deduct funds via MoneyManager
+            if (GameDevStudio.Economy.MoneyManager.Instance != null)
+            {
+                if (!GameDevStudio.Economy.MoneyManager.Instance.TrySpendMoney(_selected.price))
+                {
+                    Debug.Log($"[FurniturePlacer] Cannot place — insufficient funds for {_selected.furnitureName} (${_selected.price}).");
+                    return;
+                }
             }
 
             // Mark cells occupied
@@ -268,6 +290,11 @@ namespace GameDevStudio.Office
 
         private bool CanPlace(int gx, int gz, int fw, int fh)
         {
+            if (_selected != null && GameDevStudio.Economy.MoneyManager.Instance != null)
+            {
+                if (!GameDevStudio.Economy.MoneyManager.Instance.HasEnoughMoney(_selected.price)) return false;
+            }
+
             for (int dx = 0; dx < fw; dx++)
             for (int dz = 0; dz < fh; dz++)
             {
