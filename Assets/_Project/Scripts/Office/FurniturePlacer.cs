@@ -277,6 +277,21 @@ namespace GameDevStudio.Office
             go.transform.rotation = Quaternion.Euler(0f, _rotation * 90f, 0f);
 
             FurnitureModelBuilder.RemoveColliders(go);
+
+            // Add NavMeshObstacle so NavMeshAgents dynamically pathfind around placed furniture
+            var obstacle = go.AddComponent<UnityEngine.AI.NavMeshObstacle>();
+            obstacle.carving = true;
+            obstacle.size = new Vector3(fw * 0.85f, 1f, fh * 0.85f);
+
+            // Attach Workstation if Computer, or ChairMarker if Chair
+            if (_selected.furnitureType == FurnitureType.Computer)
+            {
+                go.AddComponent<Workstation>();
+            }
+            else if (_selected.furnitureType == FurnitureType.Chair)
+            {
+                go.AddComponent<ChairMarker>();
+            }
         }
 
         // ── Helpers ───────────────────────────────────────────────────────

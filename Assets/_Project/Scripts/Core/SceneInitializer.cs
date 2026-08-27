@@ -1,8 +1,10 @@
 using UnityEngine;
+using Unity.AI.Navigation;
 using GameDevStudio.Camera;
 using GameDevStudio.Office;
 using GameDevStudio.Economy;
 using GameDevStudio.UI;
+using GameDevStudio.Characters;
 
 namespace GameDevStudio.Core
 {
@@ -14,7 +16,7 @@ namespace GameDevStudio.Core
     ///   1. Build a simple office floor from primitives
     ///   2. Attach IsometricCameraController to Main Camera if missing
     ///   3. Centre the camera focus on the floor
-    ///   4. Initialize Grid, Economy, Time, and Debug HUD systems
+    ///   4. Initialize Grid, Economy, Time, Employee, and Debug HUD systems
     /// </summary>
     public class SceneInitializer : MonoBehaviour
     {
@@ -36,10 +38,14 @@ namespace GameDevStudio.Core
 
             BuildOfficeFloor();
             SetupCamera();
-            SetupGrid();         // Aşama 2 — grid + input
-            SetupEconomy();      // Aşama 4 — para sistemi
-            SetupGameTime();     // Aşama 4 — zaman sistemi
-            SetupDebugHUD();     // Aşama 4 — debug UI
+            SetupGrid();             // Aşama 2 — grid + input
+            SetupEconomy();          // Aşama 4 — para sistemi
+            SetupGameTime();         // Aşama 4 — zaman sistemi
+            SetupEventSystem();      // UI EventSystem + InputSystemUIInputModule
+            SetupDebugHUD();         // Aşama 4 — debug UI
+            SetupEmployeeManager();  // Aşama 5 — çalışan sistemi
+            SetupAISystem();         // Aşama 6 — AI Core & Research
+            SetupRecruitmentSystem(); // Aşama 6 — Recruitment & UI
         }
 
         // ── Floor ─────────────────────────────────────────────
@@ -54,6 +60,10 @@ namespace GameDevStudio.Core
             floor.transform.localPosition = Vector3.zero;
             floor.transform.localScale    = new Vector3(floorSizeX * 0.1f, 1f, floorSizeZ * 0.1f);
             SetColor(floor, floorColor);
+
+            // Dynamically build NavMeshSurface on floor
+            NavMeshSurface surface = floor.AddComponent<NavMeshSurface>();
+            surface.BuildNavMesh();
 
             // Four boundary walls (thin cubes)
             float hx = floorSizeX * 0.5f;
@@ -151,6 +161,18 @@ namespace GameDevStudio.Core
             }
         }
 
+        // ── Event System (New Input System UI) ─────────────
+        private void SetupEventSystem()
+        {
+            if (FindFirstObjectByType<UnityEngine.EventSystems.EventSystem>() == null)
+            {
+                GameObject esGo = new GameObject("EventSystem");
+                esGo.AddComponent<UnityEngine.EventSystems.EventSystem>();
+                esGo.AddComponent<UnityEngine.InputSystem.UI.InputSystemUIInputModule>();
+                Debug.Log("[SceneInitializer] EventSystem created with InputSystemUIInputModule.");
+            }
+        }
+
         // ── Debug UI System ─────────────────────────────────
         private void SetupDebugHUD()
         {
@@ -159,6 +181,42 @@ namespace GameDevStudio.Core
                 GameObject go = new GameObject("DebugHUD");
                 go.AddComponent<DebugHUD>();
                 Debug.Log("[SceneInitializer] DebugHUD created.");
+            }
+        }
+
+        // ── Employee System ─────────────────────────────────
+        private void SetupEmployeeManager()
+        {
+            if (EmployeeManager.Instance == null && FindFirstObjectByType<EmployeeManager>() == null)
+            {
+                GameObject go = new GameObject("EmployeeSystem");
+                go.AddComponent<EmployeeManager>();
+                Debug.Log("[SceneInitializer] EmployeeSystem created.");
+            }
+        }
+
+        // ── AI & Research System (Aşama 6) ──────────────────
+        private void SetupAISystem()
+        {
+            if (GameDevStudio.AI.AICore.Instance == null && FindFirstObjectByType<GameDevStudio.AI.AICore>() == null)
+            {
+                GameObject go = new GameObject("AISystem");
+                go.AddComponent<GameDevStudio.AI.AICore>();
+                go.AddComponent<GameDevStudio.AI.ResearchManager>();
+                Debug.Log("[SceneInitializer] AISystem (AICore + ResearchManager) created.");
+            }
+        }
+
+        // ── Recruitment & UI System (Aşama 6) ───────────────
+        private void SetupRecruitmentSystem()
+        {
+            if (RecruitmentManager.Instance == null && FindFirstObjectByType<RecruitmentManager>() == null)
+            {
+                GameObject go = new GameObject("RecruitmentSystem");
+                go.AddComponent<RecruitmentManager>();
+                go.AddComponent<RecruitmentUI>();
+                go.AddComponent<ResearchUI>();
+                Debug.Log("[SceneInitializer] RecruitmentSystem (RecruitmentManager + UI) created.");
             }
         }
 

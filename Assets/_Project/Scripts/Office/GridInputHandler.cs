@@ -51,8 +51,8 @@ namespace GameDevStudio.Office
         {
             if (Grid == null || Cam == null) return;
 
-            // Yield to FurniturePlacer when placement mode is active
-            if (FurniturePlacer.IsPlacing)
+            // Yield to FurniturePlacer when placement mode is active or when UI overlay is open
+            if (FurniturePlacer.IsPlacing || IsUIBlocking())
             {
                 if (_hoverX >= 0) { Grid.ClearHighlight(); _hoverX = _hoverZ = -1; }
                 return;
@@ -63,6 +63,15 @@ namespace GameDevStudio.Office
 
             UpdateHover(pos);
             if (clicked) HandleClick(pos);
+        }
+
+        private bool IsUIBlocking()
+        {
+            if (GameDevStudio.UI.RecruitmentUI.Instance != null && GameDevStudio.UI.RecruitmentUI.Instance.IsOpen) return true;
+            if (GameDevStudio.UI.ResearchUI.Instance != null && GameDevStudio.UI.ResearchUI.Instance.IsOpen) return true;
+            if (UnityEngine.EventSystems.EventSystem.current != null &&
+                UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()) return true;
+            return false;
         }
 
         // ── Hover ─────────────────────────────────────────────
