@@ -1,5 +1,6 @@
 using UnityEngine;
 using GameDevStudio.Camera;
+using GameDevStudio.Office;
 
 namespace GameDevStudio.Core
 {
@@ -32,6 +33,7 @@ namespace GameDevStudio.Core
 
             BuildOfficeFloor();
             SetupCamera();
+            SetupGrid();         // Aşama 2 — grid + input
         }
 
         // ── Floor ─────────────────────────────────────────────
@@ -86,6 +88,40 @@ namespace GameDevStudio.Core
 
             controller.SetFocusPoint(Vector3.zero); // centre on floor
         }
+
+        // ── Grid System ────────────────────────────────────
+        private void SetupGrid()
+        {
+            OfficeGrid existingGrid = FindFirstObjectByType<OfficeGrid>();
+
+            if (existingGrid != null)
+            {
+                // OfficeGrid is in scene — make sure GridInputHandler is also attached
+                GridInputHandler handler = existingGrid.GetComponent<GridInputHandler>();
+                if (handler == null)
+                {
+                    handler = existingGrid.gameObject.AddComponent<GridInputHandler>();
+                    Debug.Log("[SceneInitializer] GridInputHandler was missing — added to existing GridSystem.");
+                }
+
+                // Also ensure FurniturePlacer is attached
+                if (existingGrid.GetComponent<FurniturePlacer>() == null)
+                    existingGrid.gameObject.AddComponent<FurniturePlacer>();
+                else
+                {
+                    Debug.Log("[SceneInitializer] GridSystem fully present (OfficeGrid + GridInputHandler).");
+                }
+                return;
+            }
+
+            // Nothing in scene — create from scratch
+            GameObject go = new GameObject("GridSystem");
+            go.AddComponent<OfficeGrid>();
+            go.AddComponent<GridInputHandler>();
+            go.AddComponent<FurniturePlacer>();
+            Debug.Log("[SceneInitializer] GridSystem created from scratch.");
+        }
+
 
         // ── Helpers ───────────────────────────────────────────
         private static void SetColor(GameObject go, Color color)
