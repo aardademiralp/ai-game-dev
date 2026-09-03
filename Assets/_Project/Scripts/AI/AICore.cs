@@ -103,5 +103,21 @@ namespace GameDevStudio.AI
             Debug.Log($"[AICore] Energy Capacity → {energyCapacity}");
             OnEnergyChanged?.Invoke(energyCapacity);
         }
+
+        /// <summary>Called by SaveManager when loading a save. Overwrites all stats directly.</summary>
+        public void LoadStats(Save.AICoreSaveData d)
+        {
+            quality          = Mathf.Clamp(d.Quality,         0, 100);
+            speed            = Mathf.Clamp(d.Speed,           0, 100);
+            reasoning        = Mathf.Clamp(d.Reasoning,       0, 100);
+            creativity       = Mathf.Clamp(d.Creativity,      0, 100);
+            reliability      = Mathf.Clamp(d.Reliability,     0, 100);
+            learning         = Mathf.Clamp(d.Learning,        0, 100);
+            computeCapacity  = d.ComputeCapacity;
+            energyCapacity   = d.EnergyCapacity;
+
+            OnComputeChanged?.Invoke(computeCapacity);
+            OnEnergyChanged?.Invoke(energyCapacity);
+        }
     }
 }

@@ -112,5 +112,14 @@
   "common.confirm": "CONFIRM",
   "common.close": "CLOSE",
   "common.back": "BACK",
-  "common.employees": "employees"
+  "common.employees": "employees",
+
+  "menu.back": "BACK",
+  "menu.load": "LOAD",
+  "menu.empty_slot": "Empty Slot",
+
+  "diff.easy": "EASY",
+  "diff.normal": "NORMAL",
+  "diff.hard": "HARD",
+  "diff.extreme": "EXTREME"
 }

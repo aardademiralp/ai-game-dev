@@ -6,6 +6,9 @@ using GameDevStudio.Economy;
 using GameDevStudio.UI;
 using GameDevStudio.Characters;
 using GameDevStudio.AI;
+using GameDevStudio.Flow;
+using GameDevStudio.Save;
+using GameDevStudio.Localization;
 
 namespace GameDevStudio.Core
 {
@@ -37,6 +40,10 @@ namespace GameDevStudio.Core
             if (mainCamera == null)
                 mainCamera = UnityEngine.Camera.main;
 
+            // !! Sıralama kritik: MenuSystems ve FlowSystems en önce çalışmalı.
+            // MainMenuUI.Awake (BuildUI) çalışmadan GameFlowManager.Start Show() çağırırsa NullRef oluşur.
+            SetupMenuSystems();      // 1. MainMenuUI.Awake → BuildUI() garantili
+            SetupFlowSystems();      // 2. Localization, Settings, Save, GameFlow
             SetupOfficeManager();    // Starting Garage Office (L1: 6x6, Capacity: 2) & Expansion System
             SetupCamera();
             SetupGrid();             // Aşama 2 — grid + input
@@ -47,6 +54,37 @@ namespace GameDevStudio.Core
             SetupEmployeeManager();  // Aşama 5 — çalışan sistemi
             SetupAISystem();         // Aşama 6 — AI Core & Research
             SetupRecruitmentSystem(); // Aşama 6 — Recruitment & UI
+        }
+
+        // ── Flow Systems (boot-first) ────────────────────────
+        private void SetupFlowSystems()
+        {
+            if (FindFirstObjectByType<LocalizationManager>() == null)
+            {
+                GameObject go = new GameObject("LocalizationManager");
+                go.AddComponent<LocalizationManager>();
+            }
+            if (FindFirstObjectByType<SettingsManager>() == null)
+            {
+                GameObject go = new GameObject("SettingsManager");
+                go.AddComponent<SettingsManager>();
+            }
+            if (FindFirstObjectByType<SaveManager>() == null)
+            {
+                GameObject go = new GameObject("SaveManager");
+                go.AddComponent<SaveManager>();
+            }
+            if (FindFirstObjectByType<DifficultyManager>() == null)
+            {
+                GameObject go = new GameObject("DifficultyManager");
+                go.AddComponent<DifficultyManager>();
+            }
+            if (FindFirstObjectByType<GameFlowManager>() == null)
+            {
+                GameObject go = new GameObject("GameFlowManager");
+                go.AddComponent<GameFlowManager>();
+            }
+            Debug.Log("[SceneInitializer] Flow systems created.");
         }
 
         // ── Office Manager & Garage Floor ─────────────────────
@@ -200,7 +238,24 @@ namespace GameDevStudio.Core
             }
         }
 
-        // ── Helpers ───────────────────────────────────────────
+        // ── Menu Systems ─────────────────────────────────────
+        private void SetupMenuSystems()
+        {
+            if (FindFirstObjectByType<MainMenuUI>() == null)
+            {
+                GameObject go = new GameObject("MainMenuUI");
+                go.AddComponent<MainMenuUI>();
+                Debug.Log("[SceneInitializer] MainMenuUI created.");
+            }
+            if (FindFirstObjectByType<PauseMenuUI>() == null)
+            {
+                GameObject go = new GameObject("PauseMenuUI");
+                go.AddComponent<PauseMenuUI>();
+                Debug.Log("[SceneInitializer] PauseMenuUI created.");
+            }
+        }
+
+        // ── Helpers ───────────────────────────────────────────────
         private static void SetColor(GameObject go, Color color)
         {
             Renderer rend = go.GetComponent<Renderer>();

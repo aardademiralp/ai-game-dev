@@ -112,5 +112,14 @@
   "common.confirm": "ONAYLA",
   "common.close": "KAPAT",
   "common.back": "GERİ",
-  "common.employees": "çalışan"
+  "common.employees": "çalışan",
+
+  "menu.back": "GERİ",
+  "menu.load": "YÜKLE",
+  "menu.empty_slot": "Boş Slot",
+
+  "diff.easy": "KOLAY",
+  "diff.normal": "NORMAL",
+  "diff.hard": "ZOR",
+  "diff.extreme": "AŞIRI"
 }

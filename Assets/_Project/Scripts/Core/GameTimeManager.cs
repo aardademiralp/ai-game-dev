@@ -167,5 +167,19 @@ namespace GameDevStudio.Core
         {
             return $"{CurrentHour:D2}:{CurrentMinute:D2}";
         }
+
+        /// <summary>Called by SaveManager when loading a save.</summary>
+        public void LoadState(int day, int hour, int minute, float speed)
+        {
+            CurrentDay    = day;
+            CurrentHour   = hour;
+            CurrentMinute = minute;
+            _minuteAccumulator = 0f;
+            CurrentSpeedMultiplier = speed;
+
+            OnTimeChanged?.Invoke(CurrentHour, CurrentMinute);
+            OnDayChanged?.Invoke(CurrentDay);
+            OnSpeedChanged?.Invoke(CurrentSpeedMultiplier);
+        }
     }
 }

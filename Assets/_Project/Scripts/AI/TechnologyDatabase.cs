@@ -418,5 +418,29 @@ namespace GameDevStudio.AI
                 researchDays, cost, compute, energy, minEmp,
                 prereqs, effects));
         }
+
+        /// <summary>Called by SaveManager when loading a save. Restores tech states and rebuilds capability set.</summary>
+        public void LoadStates(Save.TechnologySaveData data)
+        {
+            _unlockedCapabilities.Clear();
+
+            foreach (var entry in data.TechStates)
+            {
+                var tech = GetById(entry.TechId);
+                if (tech == null) continue;
+                tech.State = (TechState)entry.State;
+
+                // Re-populate capability set for completed techs
+                if (tech.IsCompleted)
+                {
+                    foreach (var effect in tech.Effects)
+                        if (!string.IsNullOrEmpty(effect.capabilityId))
+                            _unlockedCapabilities.Add(effect.capabilityId);
+                }
+            }
+
+            RefreshAvailability();
+            Debug.Log($"[TechDB] States loaded from save. Capabilities: {_unlockedCapabilities.Count}");
+        }
     }
 }

@@ -126,6 +126,14 @@ namespace GameDevStudio.Office
             ApplyPhysicalExpansion();
         }
 
+        /// <summary>Called by SaveManager when loading a save. Restores office level without spending money.</summary>
+        public void LoadLevelIndex(int index)
+        {
+            CurrentLevelIndex = Mathf.Clamp(index, 0, _levels.Count - 1);
+            ApplyPhysicalExpansion();
+            OnOfficeExpanded?.Invoke();
+        }
+
         private void ApplyPhysicalExpansion()
         {
             var config = CurrentConfig;

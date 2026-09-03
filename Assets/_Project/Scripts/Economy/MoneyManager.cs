@@ -67,5 +67,12 @@ namespace GameDevStudio.Economy
             Debug.Log($"[Money] Cannot spend ${amount} — Insufficient funds! Balance: ${CurrentMoney}");
             return false;
         }
+
+        /// <summary>Called by SaveManager when loading a save. Overwrites balance directly.</summary>
+        public void SetMoney(int amount)
+        {
+            CurrentMoney = Mathf.Max(0, amount);
+            OnMoneyChanged?.Invoke(CurrentMoney);
+        }
     }
 }

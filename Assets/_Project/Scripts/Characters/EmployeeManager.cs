@@ -103,5 +103,38 @@ namespace GameDevStudio.Characters
                 if (ws != null && !ws.IsAssigned) return ws;
             return null;
         }
+
+        /// <summary>Called by SaveManager when loading a save. Destroys current employees and respawns from data.</summary>
+        public void LoadEmployees(System.Collections.Generic.List<Save.EmployeeSaveEntry> entries)
+        {
+            // Destroy existing employees
+            for (int i = Employees.Count - 1; i >= 0; i--)
+            {
+                if (Employees[i] != null) Destroy(Employees[i].gameObject);
+            }
+            Employees.Clear();
+
+            if (entries == null) return;
+
+            foreach (var entry in entries)
+            {
+                // Build EmployeeData from saved entry
+                var empData = ScriptableObject.CreateInstance<Employees.EmployeeData>();
+                empData.employeeName    = entry.EmployeeName;
+                empData.role            = entry.RoleString;
+                empData.appearanceStyle = (EmployeeAppearanceStyle)entry.AppearanceStyle;
+                empData.reasoningSkill  = entry.Reasoning;
+                empData.engineeringSkill = entry.Engineering;
+                empData.creativitySkill = entry.Creativity;
+                empData.dataSkill       = entry.Leadership;
+                empData.salaryPerDay    = entry.SalaryPerDay;
+                empData.traits          = (Employees.EmployeeTrait)entry.TraitFlags;
+                empData.moveSpeed       = entry.MoveSpeed;
+
+                HireEmployee(empData);
+            }
+
+            Debug.Log($"[EmployeeManager] Loaded {entries.Count} employees from save.");
+        }
     }
 }
