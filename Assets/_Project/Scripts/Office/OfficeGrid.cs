@@ -36,6 +36,37 @@ namespace GameDevStudio.Office
             CreateHighlight();
         }
 
+        public void ResizeGrid(int newWidth, int newHeight, Vector3 newOrigin)
+        {
+            gridWidth = newWidth;
+            gridHeight = newHeight;
+            gridOrigin = newOrigin;
+
+            GridData oldData = Data;
+            Data = new GridData(newWidth, newHeight);
+
+            if (oldData != null)
+            {
+                for (int x = 0; x < oldData.Width && x < newWidth; x++)
+                {
+                    for (int z = 0; z < oldData.Height && z < newHeight; z++)
+                    {
+                        var oldCell = oldData.GetCell(x, z);
+                        var newCell = Data.GetCell(x, z);
+                        if (oldCell != null && newCell != null && oldCell.State == CellState.Occupied)
+                        {
+                            newCell.State = oldCell.State;
+                        }
+                    }
+                }
+            }
+
+            Transform oldLines = transform.Find("Grid_Lines");
+            if (oldLines != null) Destroy(oldLines.gameObject);
+
+            BuildGridLines();
+        }
+
         // ── Grid Line Rendering (LineRenderer — works in URP) ────
         private void BuildGridLines()
         {

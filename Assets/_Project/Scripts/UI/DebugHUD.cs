@@ -225,7 +225,7 @@ namespace GameDevStudio.UI
             bool paused  = GameTimeManager.Instance != null && GameTimeManager.Instance.IsPaused;
             bool placing = FurniturePlacer.IsPlacing;
             int empCount = EmployeeManager.Instance   != null ? EmployeeManager.Instance.Employees.Count   : 0;
-            int capCount = RecruitmentManager.Instance != null ? RecruitmentManager.Instance.MaxStaffCapacity : (EmployeeManager.Instance != null ? EmployeeManager.Instance.Workstations.Count : 3);
+            int officeCap = OfficeManager.Instance    != null ? OfficeManager.Instance.CurrentCapacity     : 2;
 
             if (money != _lastMoney)
             {
@@ -245,11 +245,11 @@ namespace GameDevStudio.UI
                 if (_timeText != null) _timeText.text = time;
             }
 
-            if (empCount != _lastEmpCount || capCount != _lastWsCount)
+            if (empCount != _lastEmpCount || officeCap != _lastWsCount)
             {
                 _lastEmpCount = empCount;
-                _lastWsCount  = capCount;
-                if (_staffText != null) _staffText.text = $"STAFF  <b>{empCount} / {capCount}</b>";
+                _lastWsCount  = officeCap;
+                if (_staffText != null) _staffText.text = $"STAFF  <b>{empCount} / {officeCap}</b>";
             }
 
             if (speed != _lastSpeed || paused != _lastPaused)

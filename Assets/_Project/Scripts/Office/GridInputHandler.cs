@@ -69,6 +69,7 @@ namespace GameDevStudio.Office
         {
             if (GameDevStudio.UI.RecruitmentUI.Instance != null && GameDevStudio.UI.RecruitmentUI.Instance.IsOpen) return true;
             if (GameDevStudio.UI.ResearchUI.Instance != null && GameDevStudio.UI.ResearchUI.Instance.IsOpen) return true;
+            if (GameDevStudio.UI.OfficeExpansionUI.Instance != null && GameDevStudio.UI.OfficeExpansionUI.Instance.IsOpen) return true;
             if (UnityEngine.EventSystems.EventSystem.current != null &&
                 UnityEngine.EventSystems.EventSystem.current.IsPointerOverGameObject()) return true;
             return false;

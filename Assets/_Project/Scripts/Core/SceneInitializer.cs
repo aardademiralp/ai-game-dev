@@ -36,7 +36,7 @@ namespace GameDevStudio.Core
             if (mainCamera == null)
                 mainCamera = UnityEngine.Camera.main;
 
-            BuildOfficeFloor();
+            SetupOfficeManager();    // Starting Garage Office (L1: 6x6, Capacity: 2) & Expansion System
             SetupCamera();
             SetupGrid();             // Aşama 2 — grid + input
             SetupEconomy();          // Aşama 4 — para sistemi
@@ -48,45 +48,22 @@ namespace GameDevStudio.Core
             SetupRecruitmentSystem(); // Aşama 6 — Recruitment & UI
         }
 
-        // ── Floor ─────────────────────────────────────────────
-        private void BuildOfficeFloor()
+        // ── Office Manager & Garage Floor ─────────────────────
+        private void SetupOfficeManager()
         {
-            GameObject root = new GameObject("Office_Floor");
+            if (OfficeManager.Instance == null && FindFirstObjectByType<OfficeManager>() == null)
+            {
+                GameObject go = new GameObject("OfficeManager");
+                go.AddComponent<OfficeManager>();
+                Debug.Log("[SceneInitializer] OfficeManager created (Starting Garage Office L1: 6x6, Capacity: 2).");
+            }
 
-            // Plane (Unity Plane = 10×10 units at scale 1, so divide by 10)
-            GameObject floor = GameObject.CreatePrimitive(PrimitiveType.Plane);
-            floor.name = "Floor";
-            floor.transform.SetParent(root.transform);
-            floor.transform.localPosition = Vector3.zero;
-            floor.transform.localScale    = new Vector3(floorSizeX * 0.1f, 1f, floorSizeZ * 0.1f);
-            SetColor(floor, floorColor);
-
-            // Dynamically build NavMeshSurface on floor
-            NavMeshSurface surface = floor.AddComponent<NavMeshSurface>();
-            surface.BuildNavMesh();
-
-            // Four boundary walls (thin cubes)
-            float hx = floorSizeX * 0.5f;
-            float hz = floorSizeZ * 0.5f;
-
-            CreateWall(root, "Wall_North", new Vector3(0f,            wallHeight * 0.5f, hz),
-                                           new Vector3(floorSizeX,    wallHeight,        0.1f));
-            CreateWall(root, "Wall_South", new Vector3(0f,            wallHeight * 0.5f, -hz),
-                                           new Vector3(floorSizeX,    wallHeight,        0.1f));
-            CreateWall(root, "Wall_East",  new Vector3(hx,            wallHeight * 0.5f, 0f),
-                                           new Vector3(0.1f,          wallHeight,        floorSizeZ));
-            CreateWall(root, "Wall_West",  new Vector3(-hx,           wallHeight * 0.5f, 0f),
-                                           new Vector3(0.1f,          wallHeight,        floorSizeZ));
-        }
-
-        private void CreateWall(GameObject parent, string wallName, Vector3 position, Vector3 scale)
-        {
-            GameObject wall = GameObject.CreatePrimitive(PrimitiveType.Cube);
-            wall.name = wallName;
-            wall.transform.SetParent(parent.transform);
-            wall.transform.localPosition = position;
-            wall.transform.localScale    = scale;
-            SetColor(wall, wallColor);
+            if (OfficeExpansionUI.Instance == null && FindFirstObjectByType<OfficeExpansionUI>() == null)
+            {
+                GameObject uiGo = new GameObject("OfficeExpansionUI");
+                uiGo.AddComponent<OfficeExpansionUI>();
+                Debug.Log("[SceneInitializer] OfficeExpansionUI created (Toggle with E).");
+            }
         }
 
         // ── Camera ────────────────────────────────────────────

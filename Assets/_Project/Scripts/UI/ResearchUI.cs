@@ -44,6 +44,10 @@ namespace GameDevStudio.UI
             _keyEsc.Enable();
 
             _onProgressUpdatedHandler = OnProgressUpdated;
+
+            Debug.Log("[Research TRACE] Awake: Building UI...");
+            BuildUI();
+            Debug.Log("[Research TRACE] Awake completed.");
         }
 
         private void OnDestroy()
@@ -59,7 +63,9 @@ namespace GameDevStudio.UI
 
         private void Start()
         {
-            BuildUI();
+            Debug.Log("[Research TRACE] Start ENTER.");
+            if (_listContainer == null) BuildUI();
+
             if (ResearchManager.Instance != null)
             {
                 ResearchManager.Instance.OnResearchProgressUpdated += _onProgressUpdatedHandler;
@@ -70,6 +76,7 @@ namespace GameDevStudio.UI
         {
             if (_keyF != null && _keyF.WasPressedThisFrame())
             {
+                Debug.Log($"[Research TRACE] F pressed! IsPlacing = {Office.FurniturePlacer.IsPlacing}");
                 if (!Office.FurniturePlacer.IsPlacing)
                 {
                     if (RecruitmentUI.Instance != null && RecruitmentUI.Instance.IsOpen)
@@ -81,6 +88,7 @@ namespace GameDevStudio.UI
 
             if (_isOpen && _keyEsc != null && _keyEsc.WasPressedThisFrame())
             {
+                Debug.Log("[Research TRACE] ESC pressed while research is open. Closing window.");
                 CloseWindow();
             }
 
@@ -93,22 +101,32 @@ namespace GameDevStudio.UI
 
         public void ToggleWindow()
         {
+            Debug.Log($"[Research TRACE] ToggleWindow called. Current _isOpen = {_isOpen}");
             if (_isOpen) CloseWindow();
             else OpenWindow();
         }
 
         public void OpenWindow()
         {
+            Debug.Log($"[Research TRACE] OpenWindow ENTER. _isOpen set to true. _listContainer null? {(_listContainer == null)}");
+            if (_listContainer == null || _panel == null) BuildUI();
+
             _isOpen = true;
             if (_panel != null)
             {
                 _panel.SetActive(true);
+                Debug.Log("[Research TRACE] _panel set active. Calling RebuildEmployeeList()...");
                 RebuildEmployeeList();
+            }
+            else
+            {
+                Debug.LogError("[Research TRACE] OpenWindow: _panel is NULL!");
             }
         }
 
         public void CloseWindow()
         {
+            Debug.Log($"[Research TRACE] CloseWindow ENTER. _isOpen set to false. _panel null? {(_panel == null)}");
             _isOpen = false;
             if (_panel != null)
             {
@@ -118,6 +136,9 @@ namespace GameDevStudio.UI
 
         private void BuildUI()
         {
+            Transform existingCanvas = transform.Find("ResearchCanvas");
+            if (existingCanvas != null) DestroyImmediate(existingCanvas.gameObject);
+
             GameObject canvasGo = new GameObject("ResearchCanvas");
             canvasGo.transform.SetParent(transform, false);
 
@@ -277,7 +298,23 @@ namespace GameDevStudio.UI
 
         private void RebuildEmployeeList()
         {
-            if (_listContainer == null || EmployeeManager.Instance == null) return;
+            if (_listContainer == null && _panel != null)
+            {
+                _listContainer = _panel.transform.Find("ContentBox/ListContainer");
+            }
+
+            if (_listContainer == null || _panel == null)
+            {
+                Debug.Log("[Research TRACE] _listContainer or _panel null in RebuildEmployeeList. Rebuilding UI...");
+                BuildUI();
+            }
+
+            Debug.Log($"[Research TRACE] RebuildEmployeeList ENTER. _listContainer null? {(_listContainer == null)}, EmployeeManager.Instance null? {(EmployeeManager.Instance == null)}");
+            if (_listContainer == null || EmployeeManager.Instance == null)
+            {
+                Debug.LogWarning($"[Research TRACE] RebuildEmployeeList ABORTED due to null references! _listContainer null? {(_listContainer == null)}, EmployeeManager null? {(EmployeeManager.Instance == null)}");
+                return;
+            }
 
             // Safely destroy all previous row GameObjects
             for (int i = _listContainer.childCount - 1; i >= 0; i--)
@@ -287,10 +324,11 @@ namespace GameDevStudio.UI
 
             var employees = EmployeeManager.Instance.Employees;
             int empCount = employees != null ? employees.Count : 0;
-            Debug.Log($"[ResearchUI] Employees in studio: {empCount}");
+            Debug.Log($"[Research TRACE] Employee count = {empCount}");
 
             if (empCount == 0)
             {
+                Debug.Log("[Research TRACE] Empty state created: 'No employees hired yet. Press R to recruit AI Researchers!'");
                 GameObject emptyGo = new GameObject("EmptyText");
                 emptyGo.transform.SetParent(_listContainer, false);
                 Text t = emptyGo.AddComponent<Text>();
@@ -310,12 +348,17 @@ namespace GameDevStudio.UI
             {
                 foreach (var emp in employees)
                 {
-                    if (emp != null) CreateEmployeeRow(emp);
+                    if (emp != null)
+                    {
+                        Debug.Log($"[Research TRACE] Creating employee row for {emp.Data?.employeeName}");
+                        CreateEmployeeRow(emp);
+                    }
                 }
             }
 
             Canvas.ForceUpdateCanvases();
             LayoutRebuilder.ForceRebuildLayoutImmediate(_listContainer.GetComponent<RectTransform>());
+            Debug.Log("[Research TRACE] RebuildEmployeeList EXIT.");
         }
 
         private void CreateEmployeeRow(EmployeeController emp)

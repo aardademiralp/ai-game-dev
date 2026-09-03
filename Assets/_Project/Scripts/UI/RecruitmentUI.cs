@@ -4,6 +4,7 @@ using UnityEngine.InputSystem;
 using System.Collections.Generic;
 using GameDevStudio.Employees;
 using GameDevStudio.Characters;
+using GameDevStudio.Office;
 
 namespace GameDevStudio.UI
 {
@@ -46,8 +47,18 @@ namespace GameDevStudio.UI
             _keyR.Enable();
             _keyEsc.Enable();
 
-            _onPoolRefreshedHandler = () => { if (_isOpen) PopulateCandidates(); };
-            _onEmployeeHiredHandler = (data) => { if (_isOpen) PopulateCandidates(); };
+            _onPoolRefreshedHandler = () => {
+                Debug.Log($"[Recruitment TRACE] _onPoolRefreshedHandler invoked. _isOpen = {_isOpen}");
+                if (_isOpen) PopulateCandidates();
+            };
+            _onEmployeeHiredHandler = (data) => {
+                Debug.Log($"[Recruitment TRACE] _onEmployeeHiredHandler invoked for {data?.employeeName}. _isOpen = {_isOpen}");
+                if (_isOpen) PopulateCandidates();
+            };
+
+            Debug.Log("[Recruitment TRACE] Awake: Building UI...");
+            BuildUI();
+            Debug.Log("[Recruitment TRACE] Awake completed.");
         }
 
         private void OnDestroy()
@@ -66,11 +77,18 @@ namespace GameDevStudio.UI
 
         private void Start()
         {
-            BuildUI();
+            Debug.Log("[Recruitment TRACE] Start ENTER.");
+            if (_cardContainer == null) BuildUI();
+
             if (RecruitmentManager.Instance != null)
             {
                 RecruitmentManager.Instance.OnCandidatePoolRefreshed += _onPoolRefreshedHandler;
                 RecruitmentManager.Instance.OnEmployeeHired += _onEmployeeHiredHandler;
+                Debug.Log("[Recruitment TRACE] Subscribed to RecruitmentManager events.");
+            }
+            else
+            {
+                Debug.LogWarning("[Recruitment TRACE] Start: RecruitmentManager.Instance is NULL during subscription!");
             }
         }
 
@@ -78,6 +96,7 @@ namespace GameDevStudio.UI
         {
             if (_keyR != null && _keyR.WasPressedThisFrame())
             {
+                Debug.Log($"[Recruitment TRACE] R key pressed! IsPlacing = {Office.FurniturePlacer.IsPlacing}");
                 if (!Office.FurniturePlacer.IsPlacing)
                 {
                     if (ResearchUI.Instance != null && ResearchUI.Instance.IsOpen)
@@ -89,30 +108,39 @@ namespace GameDevStudio.UI
 
             if (_isOpen && _keyEsc != null && _keyEsc.WasPressedThisFrame())
             {
+                Debug.Log("[Recruitment TRACE] ESC key pressed while recruitment is open. Closing window.");
                 CloseWindow();
             }
         }
 
         public void ToggleWindow()
         {
+            Debug.Log($"[Recruitment TRACE] ToggleWindow called. Current _isOpen = {_isOpen}");
             if (_isOpen) CloseWindow();
             else OpenWindow();
         }
 
         public void OpenWindow()
         {
-            Debug.Log("[RecruitmentUI DEBUG] Open called");
+            Debug.Log($"[Recruitment TRACE] OpenWindow ENTER. _isOpen set to true. _cardContainer null? {(_cardContainer == null)}");
+            if (_cardContainer == null || _panel == null) BuildUI();
+
             _isOpen = true;
             if (_panel != null)
             {
                 _panel.SetActive(true);
+                Debug.Log($"[Recruitment TRACE] _panel set active: {_panel.activeSelf}. Calling PopulateCandidates()...");
                 PopulateCandidates();
+            }
+            else
+            {
+                Debug.LogError("[Recruitment TRACE] OpenWindow: _panel is NULL! UI build failed!");
             }
         }
 
         public void CloseWindow()
         {
-            Debug.Log("[RecruitmentUI DEBUG] Close called");
+            Debug.Log($"[Recruitment TRACE] CloseWindow ENTER. _isOpen set to false. _panel is null? {(_panel == null)}");
             _isOpen = false;
             if (_panel != null)
             {
@@ -122,6 +150,9 @@ namespace GameDevStudio.UI
 
         private void BuildUI()
         {
+            Transform existingCanvas = transform.Find("RecruitmentCanvas");
+            if (existingCanvas != null) DestroyImmediate(existingCanvas.gameObject);
+
             GameObject canvasGo = new GameObject("RecruitmentCanvas");
             canvasGo.transform.SetParent(transform, false);
 
@@ -275,7 +306,23 @@ namespace GameDevStudio.UI
 
         private void PopulateCandidates()
         {
-            if (_cardContainer == null || RecruitmentManager.Instance == null) return;
+            if (_cardContainer == null && _panel != null)
+            {
+                _cardContainer = _panel.transform.Find("ContentBox/CardContainer");
+            }
+
+            if (_cardContainer == null || _panel == null)
+            {
+                Debug.Log("[Recruitment TRACE] _cardContainer or _panel null in PopulateCandidates. Rebuilding UI...");
+                BuildUI();
+            }
+
+            Debug.Log($"[Recruitment TRACE] PopulateCandidates ENTER. _cardContainer null? {(_cardContainer == null)}, RecruitmentManager.Instance null? {(RecruitmentManager.Instance == null)}");
+            if (_cardContainer == null || RecruitmentManager.Instance == null)
+            {
+                Debug.LogWarning($"[Recruitment TRACE] PopulateCandidates ABORTED due to null references! _cardContainer null? {(_cardContainer == null)}, RecruitmentManager null? {(RecruitmentManager.Instance == null)}");
+                return;
+            }
 
             // Clear previously tracked card GameObjects safely
             foreach (var oldCard in _spawnedCards)
@@ -285,43 +332,49 @@ namespace GameDevStudio.UI
             _spawnedCards.Clear();
 
             int currentEmp = EmployeeManager.Instance != null ? EmployeeManager.Instance.Employees.Count : 0;
-            int maxCap = RecruitmentManager.Instance.MaxStaffCapacity;
+            int maxCap = RecruitmentManager.Instance != null ? RecruitmentManager.Instance.MaxStaffCapacity : 3;
+            int officeCap = OfficeManager.Instance != null ? OfficeManager.Instance.CurrentCapacity : 2;
 
             if (_capacityText != null)
-                _capacityText.text = $"STAFF CAPACITY: <b>{currentEmp} / {maxCap}</b>";
+                _capacityText.text = $"OFFICE CAPACITY: <b>{currentEmp} / {officeCap}</b>   (SAFETY LIMIT: {maxCap})";
 
             var pool = RecruitmentManager.Instance.CandidatePool;
 
             if (pool == null || pool.Count == 0)
             {
+                Debug.Log("[Recruitment TRACE] Candidate pool is empty. Triggering RefreshCandidates(3)...");
                 RecruitmentManager.Instance.RefreshCandidates(3);
                 pool = RecruitmentManager.Instance.CandidatePool;
             }
 
-            Debug.Log($"[RecruitmentUI DEBUG] Candidate count = {(pool != null ? pool.Count : 0)}");
+            Debug.Log($"[Recruitment TRACE] Candidate pool count = {(pool != null ? pool.Count : 0)}");
 
-            if (pool == null) return;
+            if (pool == null)
+            {
+                Debug.LogWarning("[Recruitment TRACE] Candidate pool is still null after refresh!");
+                return;
+            }
 
             float[] xPositions = new float[] { -330f, 0f, 330f };
 
             for (int i = 0; i < pool.Count && i < 3; i++)
             {
                 var candidate = pool[i];
-                Debug.Log($"[RecruitmentUI DEBUG] Creating card index={i} name={candidate.employeeName}");
+                Debug.Log($"[Recruitment TRACE] Creating candidate card #{i}: {candidate.employeeName}");
                 CreateCandidateCard(candidate, i, xPositions[i]);
             }
 
-            Debug.Log($"[RecruitmentUI DEBUG] Finished creating {pool.Count} candidate cards.");
+            Debug.Log($"[Recruitment TRACE] PopulateCandidates EXIT. Spawned {_spawnedCards.Count} cards successfully.");
         }
 
         private void CreateCandidateCard(EmployeeData c, int index, float xPos)
         {
+            Debug.Log($"[Recruitment TRACE] CreateCandidateCard({index}) ENTER. Name={c.employeeName}");
             GameObject cardGo = new GameObject($"CandidateCard_{index}_{c.employeeName}");
             cardGo.transform.SetParent(_cardContainer, false);
             _spawnedCards.Add(cardGo);
 
-            Debug.Log($"[RecruitmentUI DEBUG] Card GameObject created: {cardGo.name}");
-            Debug.Log($"[RecruitmentUI DEBUG] Parent = {cardGo.transform.parent.name}");
+            Debug.Log($"[Recruitment TRACE] Card GO created: '{cardGo.name}'. Parent: '{cardGo.transform.parent?.name}'");
 
             // Card RectTransform
             RectTransform rt = cardGo.AddComponent<RectTransform>();
@@ -337,8 +390,7 @@ namespace GameDevStudio.UI
             cardImg.color = new Color(0.14f, 0.18f, 0.28f, 1.0f);
             cardImg.raycastTarget = true;
 
-            Debug.Log($"[RecruitmentUI DEBUG] Position = {rt.anchoredPosition}, Size = {rt.sizeDelta}, Scale = {cardGo.transform.localScale}");
-            Debug.Log($"[RecruitmentUI DEBUG] Active = {cardGo.activeSelf}");
+            Debug.Log($"[Recruitment TRACE] Card RectTransform setup: position={rt.anchoredPosition3D}, sizeDelta={rt.sizeDelta}, scale={cardGo.transform.localScale}, activeSelf={cardGo.activeSelf}, activeInHierarchy={cardGo.activeInHierarchy}");
 
             // Border Line
             GameObject borderGo = new GameObject("Border");
@@ -428,7 +480,13 @@ namespace GameDevStudio.UI
                             $"Trait: {c.traits}";
 
             // HIRE Button
+            bool underOfficeLimit = OfficeManager.Instance == null || OfficeManager.Instance.CanHireMoreEmployees();
             bool canHire = RecruitmentManager.Instance != null && RecruitmentManager.Instance.CanHire();
+
+            string buttonLabel = "HIRE";
+            if (!underOfficeLimit) buttonLabel = "OFFICE FULL";
+            else if (!canHire) buttonLabel = "LIMIT REACHED";
+
             GameObject hireBtnGo = new GameObject("HireButton");
             hireBtnGo.transform.SetParent(cardGo.transform, false);
             RectTransform hireRt = hireBtnGo.AddComponent<RectTransform>();
@@ -475,7 +533,7 @@ namespace GameDevStudio.UI
             hireTxt.fontSize = 17;
             hireTxt.fontStyle = FontStyle.Bold;
             hireTxt.color = Color.white;
-            hireTxt.text = canHire ? "HIRE" : "FULL";
+            hireTxt.text = buttonLabel;
             hireTxt.alignment = TextAnchor.MiddleCenter;
             hireTxt.raycastTarget = false;
         }

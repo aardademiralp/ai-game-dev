@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using GameDevStudio.Employees;
 using GameDevStudio.Economy;
 using GameDevStudio.Core;
+using GameDevStudio.Office;
 
 namespace GameDevStudio.Characters
 {
@@ -15,8 +16,9 @@ namespace GameDevStudio.Characters
     {
         public static RecruitmentManager Instance { get; private set; }
 
-        [Header("Configuration")]
-        [SerializeField] private int defaultMaxStaffCapacity = 3;
+        // Safety ceiling — actual capacity is always enforced by OfficeManager.
+        // This value is intentionally high so it never interferes with office-level caps.
+        [SerializeField] private int defaultMaxStaffCapacity = 99;
 
         public int MaxStaffCapacity => defaultMaxStaffCapacity;
         public List<EmployeeData> CandidatePool { get; private set; } = new List<EmployeeData>();
@@ -52,17 +54,24 @@ namespace GameDevStudio.Characters
 
         public void RefreshCandidates(int count = 3)
         {
+            Debug.Log($"[Recruitment TRACE] RefreshCandidates({count}) ENTER. Previous count = {CandidatePool.Count}");
             CandidatePool.Clear();
             for (int i = 0; i < count; i++)
             {
                 CandidatePool.Add(EmployeeData.GenerateAICandidate());
             }
+            Debug.Log($"[Recruitment TRACE] Candidate pool now contains {CandidatePool.Count} candidates. Invoking OnCandidatePoolRefreshed...");
             OnCandidatePoolRefreshed?.Invoke();
             Debug.Log($"[Recruitment] Refreshed candidate pool with {CandidatePool.Count} AI researchers.");
         }
 
         public bool CanHire()
         {
+            // OfficeManager is the single source of truth for staff capacity.
+            if (OfficeManager.Instance != null)
+                return OfficeManager.Instance.CanHireMoreEmployees();
+
+            // Fallback if OfficeManager is somehow not present.
             int currentEmp = EmployeeManager.Instance != null ? EmployeeManager.Instance.Employees.Count : 0;
             return currentEmp < MaxStaffCapacity;
         }
@@ -73,7 +82,8 @@ namespace GameDevStudio.Characters
 
             if (!CanHire())
             {
-                Debug.LogWarning($"[Recruitment] Cannot hire {candidate.employeeName} — Staff Capacity limit reached ({MaxStaffCapacity}).");
+                int officeCap = OfficeManager.Instance != null ? OfficeManager.Instance.CurrentCapacity : MaxStaffCapacity;
+                Debug.LogWarning($"[Recruitment] Cannot hire {candidate.employeeName} — Office at capacity ({officeCap} employees max).");
                 return false;
             }
 
