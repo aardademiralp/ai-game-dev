@@ -9,30 +9,45 @@ namespace GameDevStudio.AI
         Speed,
         Reasoning,
         Creativity,
-        Reliability
+        Reliability,
+        Learning      // NEW — represents AI learning ability
     }
 
     /// <summary>
-    /// Central AI System data model representing the company's core AI model capabilities (0-100).
+    /// Central AI System data model.
+    /// Tracks capability stats (0-100), Compute Capacity, and Energy Capacity.
+    /// Stats are improved by technology effects, not by individual employee tasks.
     /// </summary>
     public class AICore : MonoBehaviour
     {
         public static AICore Instance { get; private set; }
 
-        [Header("AI System Stats (0–100)")]
+        [Header("AI Capability Stats (0–100)")]
         [Range(0, 100)] [SerializeField] private int quality     = 20;
         [Range(0, 100)] [SerializeField] private int speed       = 15;
         [Range(0, 100)] [SerializeField] private int reasoning   = 10;
         [Range(0, 100)] [SerializeField] private int creativity  = 12;
         [Range(0, 100)] [SerializeField] private int reliability = 25;
+        [Range(0, 100)] [SerializeField] private int learning    = 5;
 
-        public int Quality     => quality;
-        public int Speed       => speed;
-        public int Reasoning   => reasoning;
-        public int Creativity  => creativity;
-        public int Reliability => reliability;
+        [Header("Infrastructure")]
+        [SerializeField] private int computeCapacity = 10;  // Base compute available
+        [SerializeField] private int energyCapacity  = 20;  // Base energy available
 
-        public event Action<AIStatType, int, int> OnAIStatChanged; // (statType, oldValue, newValue)
+        // ── Public read-only properties ───────────────────────────────────────
+        public int Quality           => quality;
+        public int Speed             => speed;
+        public int Reasoning         => reasoning;
+        public int Creativity        => creativity;
+        public int Reliability       => reliability;
+        public int Learning          => learning;
+        public int CurrentComputeCapacity => computeCapacity;
+        public int CurrentEnergyCapacity  => energyCapacity;
+
+        // ── Events ────────────────────────────────────────────────────────────
+        public event Action<AIStatType, int, int> OnAIStatChanged;   // (stat, oldVal, newVal)
+        public event Action<int>                  OnComputeChanged;  // newCapacity
+        public event Action<int>                  OnEnergyChanged;   // newCapacity
 
         private void Awake()
         {
@@ -40,6 +55,7 @@ namespace GameDevStudio.AI
             Instance = this;
         }
 
+        // ── Stat access ───────────────────────────────────────────────────────
         public int GetStat(AIStatType statType)
         {
             switch (statType)
@@ -49,6 +65,7 @@ namespace GameDevStudio.AI
                 case AIStatType.Reasoning:   return reasoning;
                 case AIStatType.Creativity:  return creativity;
                 case AIStatType.Reliability: return reliability;
+                case AIStatType.Learning:    return learning;
                 default: return 0;
             }
         }
@@ -65,10 +82,26 @@ namespace GameDevStudio.AI
                 case AIStatType.Reasoning:   reasoning   = newVal; break;
                 case AIStatType.Creativity:  creativity  = newVal; break;
                 case AIStatType.Reliability: reliability = newVal; break;
+                case AIStatType.Learning:    learning    = newVal; break;
             }
 
-            Debug.Log($"[AICore] Improved {statType} from {oldVal} → {newVal}");
+            Debug.Log($"[AICore] {statType}: {oldVal} → {newVal}");
             OnAIStatChanged?.Invoke(statType, oldVal, newVal);
+        }
+
+        // ── Infrastructure ────────────────────────────────────────────────────
+        public void AddComputeCapacity(int amount)
+        {
+            computeCapacity += amount;
+            Debug.Log($"[AICore] Compute Capacity → {computeCapacity}");
+            OnComputeChanged?.Invoke(computeCapacity);
+        }
+
+        public void AddEnergyCapacity(int amount)
+        {
+            energyCapacity += amount;
+            Debug.Log($"[AICore] Energy Capacity → {energyCapacity}");
+            OnEnergyChanged?.Invoke(energyCapacity);
         }
     }
 }

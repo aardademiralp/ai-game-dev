@@ -2,73 +2,86 @@ using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.InputSystem;
 using System.Collections.Generic;
-using GameDevStudio.Characters;
 using GameDevStudio.AI;
+using GameDevStudio.Economy;
 
 namespace GameDevStudio.UI
 {
     /// <summary>
-    /// Professional uGUI Research Assignment panel (toggled with F key or Esc).
-    /// Displays current AI Core stats, hired employees, active tasks, and progress bars.
-    /// Explicit component positioning and unsubscription on destroy to prevent MissingReferenceException.
+    /// Technology Tree UI — toggled with F key.
+    /// Shows AI Core stats, category tabs, technology cards, and active research panel.
+    /// Replaces the old employee-assignment research panel.
     /// </summary>
     public class ResearchUI : MonoBehaviour
     {
         public static ResearchUI Instance { get; private set; }
-
         public bool IsOpen => _isOpen;
 
-        private GameObject   _panel;
-        private Transform    _listContainer;
-        private Text         _aiStatsHeader;
-        private Font         _uiFont;
+        // ── UI Refs ──────────────────────────────────────────────────────────
+        private GameObject _panel;
+        private Text       _aiStatsText;
+        private Text       _activeResearchText;
+        private Text       _statusMessageText;
+        private GameObject _techListContainer;
+        private GameObject _detailPanel;
+        private Font       _uiFont;
 
-        private InputAction  _keyF;
-        private InputAction  _keyEsc;
-        private bool         _isOpen = false;
+        private TechCategory         _selectedCategory = TechCategory.CoreTechnology;
+        private TechnologyData       _selectedTech;
+        private readonly List<GameObject> _techCards = new List<GameObject>();
+        private readonly List<Button>     _tabButtons = new List<Button>();
 
-        private System.Action<ResearchAssignment> _onProgressUpdatedHandler;
+        // ── Input ────────────────────────────────────────────────────────────
+        private InputAction _keyF;
+        private InputAction _keyEsc;
+        private bool        _isOpen;
 
+        // ── Handlers (named for safe unsubscription) ─────────────────────────
+        private System.Action<TechnologyData, float> _onProgressHandler;
+        private System.Action<TechnologyData>        _onCompletedHandler;
+        private System.Action<string>                _onFailedHandler;
+
+        // ────────────────────────────────────────────────────────────────────
         private void Awake()
         {
             if (Instance != null && Instance != this) { Destroy(gameObject); return; }
             Instance = this;
 
-            _uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf") ??
-                      Resources.GetBuiltinResource<Font>("Arial.ttf") ??
-                      Font.CreateDynamicFontFromOSFont("Arial", 24);
+            _uiFont = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf")
+                   ?? Resources.GetBuiltinResource<Font>("Arial.ttf")
+                   ?? Font.CreateDynamicFontFromOSFont("Arial", 24);
 
-            _keyF   = new InputAction("Research_F", InputActionType.Button, "<Keyboard>/f");
-            _keyEsc = new InputAction("Research_Esc", InputActionType.Button, "<Keyboard>/escape");
+            _keyF   = new InputAction("TechTree_F",   InputActionType.Button, "<Keyboard>/f");
+            _keyEsc = new InputAction("TechTree_Esc", InputActionType.Button, "<Keyboard>/escape");
             _keyF.Enable();
             _keyEsc.Enable();
 
-            _onProgressUpdatedHandler = OnProgressUpdated;
+            _onProgressHandler  = (t, p)  => { if (_isOpen) RefreshActiveResearch(); };
+            _onCompletedHandler = (t)      => { if (_isOpen) { RefreshAll(); ShowStatus($"✓ {t.Name} completed!"); } };
+            _onFailedHandler    = (msg)    => { if (_isOpen) ShowStatus(msg); };
 
-            Debug.Log("[Research TRACE] Awake: Building UI...");
             BuildUI();
-            Debug.Log("[Research TRACE] Awake completed.");
+        }
+
+        private void Start()
+        {
+            if (TechnologyResearchManager.Instance != null)
+            {
+                TechnologyResearchManager.Instance.OnResearchProgress  += _onProgressHandler;
+                TechnologyResearchManager.Instance.OnResearchCompleted += _onCompletedHandler;
+                TechnologyResearchManager.Instance.OnResearchFailed    += _onFailedHandler;
+            }
         }
 
         private void OnDestroy()
         {
             _keyF?.Dispose();
             _keyEsc?.Dispose();
-
-            if (ResearchManager.Instance != null && _onProgressUpdatedHandler != null)
+            if (TechnologyResearchManager.Instance != null)
             {
-                ResearchManager.Instance.OnResearchProgressUpdated -= _onProgressUpdatedHandler;
-            }
-        }
-
-        private void Start()
-        {
-            Debug.Log("[Research TRACE] Start ENTER.");
-            if (_listContainer == null) BuildUI();
-
-            if (ResearchManager.Instance != null)
-            {
-                ResearchManager.Instance.OnResearchProgressUpdated += _onProgressUpdatedHandler;
+                TechnologyResearchManager.Instance.OnResearchProgress  -= _onProgressHandler;
+                TechnologyResearchManager.Instance.OnResearchCompleted -= _onCompletedHandler;
+                TechnologyResearchManager.Instance.OnResearchFailed    -= _onFailedHandler;
             }
         }
 
@@ -76,428 +89,453 @@ namespace GameDevStudio.UI
         {
             if (_keyF != null && _keyF.WasPressedThisFrame())
             {
-                Debug.Log($"[Research TRACE] F pressed! IsPlacing = {Office.FurniturePlacer.IsPlacing}");
                 if (!Office.FurniturePlacer.IsPlacing)
                 {
                     if (RecruitmentUI.Instance != null && RecruitmentUI.Instance.IsOpen)
                         RecruitmentUI.Instance.CloseWindow();
-
+                    if (OfficeExpansionUI.Instance != null && OfficeExpansionUI.Instance.IsOpen)
+                        OfficeExpansionUI.Instance.CloseWindow();
                     ToggleWindow();
                 }
             }
-
             if (_isOpen && _keyEsc != null && _keyEsc.WasPressedThisFrame())
-            {
-                Debug.Log("[Research TRACE] ESC pressed while research is open. Closing window.");
                 CloseWindow();
-            }
 
-            if (_isOpen)
-            {
-                RefreshAIStatsHeader();
-                UpdateProgress();
-            }
+            // Live-update active research progress bar each frame while open
+            if (_isOpen && TechnologyResearchManager.Instance?.ActiveResearch != null)
+                RefreshActiveResearch();
         }
 
-        public void ToggleWindow()
-        {
-            Debug.Log($"[Research TRACE] ToggleWindow called. Current _isOpen = {_isOpen}");
-            if (_isOpen) CloseWindow();
-            else OpenWindow();
-        }
+        public void ToggleWindow() { if (_isOpen) CloseWindow(); else OpenWindow(); }
 
         public void OpenWindow()
         {
-            Debug.Log($"[Research TRACE] OpenWindow ENTER. _isOpen set to true. _listContainer null? {(_listContainer == null)}");
-            if (_listContainer == null || _panel == null) BuildUI();
-
+            if (_panel == null) BuildUI();
             _isOpen = true;
-            if (_panel != null)
-            {
-                _panel.SetActive(true);
-                Debug.Log("[Research TRACE] _panel set active. Calling RebuildEmployeeList()...");
-                RebuildEmployeeList();
-            }
-            else
-            {
-                Debug.LogError("[Research TRACE] OpenWindow: _panel is NULL!");
-            }
+            _panel.SetActive(true);
+            RefreshAll();
         }
 
         public void CloseWindow()
         {
-            Debug.Log($"[Research TRACE] CloseWindow ENTER. _isOpen set to false. _panel null? {(_panel == null)}");
             _isOpen = false;
-            if (_panel != null)
-            {
-                _panel.SetActive(false);
-            }
+            if (_panel != null) _panel.SetActive(false);
         }
 
+        // ── Build static UI structure ────────────────────────────────────────
         private void BuildUI()
         {
-            Transform existingCanvas = transform.Find("ResearchCanvas");
-            if (existingCanvas != null) DestroyImmediate(existingCanvas.gameObject);
+            Transform old = transform.Find("TechTreeCanvas");
+            if (old != null) DestroyImmediate(old.gameObject);
 
-            GameObject canvasGo = new GameObject("ResearchCanvas");
+            var canvasGo = new GameObject("TechTreeCanvas");
             canvasGo.transform.SetParent(transform, false);
-
-            Canvas canvas = canvasGo.AddComponent<Canvas>();
+            var canvas = canvasGo.AddComponent<Canvas>();
             canvas.renderMode = RenderMode.ScreenSpaceOverlay;
             canvas.sortingOrder = 200;
-
-            CanvasScaler scaler = canvasGo.AddComponent<CanvasScaler>();
+            var scaler = canvasGo.AddComponent<CanvasScaler>();
             scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
             scaler.referenceResolution = new Vector2(1920f, 1080f);
-            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
             scaler.matchWidthOrHeight = 0.5f;
-
             canvasGo.AddComponent<GraphicRaycaster>();
 
-            // Background Dim Panel
-            _panel = new GameObject("ResearchWindow");
-            _panel.transform.SetParent(canvasGo.transform, false);
+            // Background
+            _panel = CreateGo("TechWindow", canvasGo.transform);
+            var bg = _panel.AddComponent<Image>();
+            bg.color = new Color(0.03f, 0.04f, 0.07f, 0.93f);
+            FullStretch(_panel.GetComponent<RectTransform>());
 
-            Image bgImg = _panel.AddComponent<Image>();
-            bgImg.color = new Color(0.04f, 0.05f, 0.08f, 0.88f);
-            bgImg.raycastTarget = true;
+            // Main box
+            var box = CreateGo("Box", _panel.transform);
+            box.AddComponent<Image>().color = new Color(0.07f, 0.09f, 0.13f, 0.99f);
+            var boxRt = box.GetComponent<RectTransform>();
+            boxRt.anchorMin = new Vector2(0.03f, 0.02f);
+            boxRt.anchorMax = new Vector2(0.97f, 0.98f);
+            boxRt.offsetMin = boxRt.offsetMax = Vector2.zero;
 
-            RectTransform panelRt = _panel.GetComponent<RectTransform>();
-            panelRt.anchorMin = Vector2.zero;
-            panelRt.anchorMax = Vector2.one;
-            panelRt.offsetMin = Vector2.zero;
-            panelRt.offsetMax = Vector2.zero;
+            // Title
+            var titleTxt = MakeText("Title", box.transform, "AI CORE TECHNOLOGY", 26, FontStyle.Bold,
+                new Color(0f, 0.9f, 1f), TextAnchor.MiddleCenter);
+            SetAnchors(titleTxt.GetComponent<RectTransform>(), 0f, 0.93f, 1f, 1f, 0, -5f, 0, -5f);
 
-            // Content Box
-            GameObject box = new GameObject("ContentBox");
-            box.transform.SetParent(_panel.transform, false);
-            Image boxImg = box.AddComponent<Image>();
-            boxImg.color = new Color(0.08f, 0.10f, 0.16f, 0.98f);
-            boxImg.raycastTarget = true;
+            // AI Stats bar
+            _aiStatsText = MakeText("AIStats", box.transform, "", 15, FontStyle.Normal,
+                new Color(1f, 0.85f, 0.3f), TextAnchor.MiddleCenter);
+            SetAnchors(_aiStatsText.GetComponent<RectTransform>(), 0f, 0.86f, 1f, 0.93f, 5, 0, -5, 0);
 
-            RectTransform boxRt = box.GetComponent<RectTransform>();
-            boxRt.anchorMin = new Vector2(0.5f, 0.5f);
-            boxRt.anchorMax = new Vector2(0.5f, 0.5f);
-            boxRt.pivot = new Vector2(0.5f, 0.5f);
-            boxRt.sizeDelta = new Vector2(1050f, 650f);
+            // Category tab strip
+            BuildCategoryTabs(box.transform);
 
-            // Title Text
-            GameObject titleGo = new GameObject("Title");
-            titleGo.transform.SetParent(box.transform, false);
-            Text titleTxt = titleGo.AddComponent<Text>();
-            titleTxt.font = _uiFont;
-            titleTxt.fontSize = 28;
-            titleTxt.fontStyle = FontStyle.Bold;
-            titleTxt.color = new Color(0.0f, 0.88f, 1.0f);
-            titleTxt.text = "AI RESEARCH ASSIGNMENT";
-            titleTxt.alignment = TextAnchor.MiddleCenter;
-            titleTxt.raycastTarget = false;
+            // Tech list scroll area (left 60%)
+            var listBg = CreateGo("ListBg", box.transform);
+            listBg.AddComponent<Image>().color = new Color(0.05f, 0.06f, 0.10f, 0.7f);
+            SetAnchors(listBg.GetComponent<RectTransform>(), 0f, 0.18f, 0.6f, 0.84f, 5, 5, -5, -5);
 
-            RectTransform titleRt = titleGo.GetComponent<RectTransform>();
-            titleRt.anchorMin = new Vector2(0f, 1f);
-            titleRt.anchorMax = new Vector2(1f, 1f);
-            titleRt.pivot = new Vector2(0.5f, 1f);
-            titleRt.sizeDelta = new Vector2(0f, 45f);
-            titleRt.anchoredPosition = new Vector2(0f, -12f);
-
-            // AI Core Stats Bar
-            GameObject statsGo = new GameObject("AIStatsHeader");
-            statsGo.transform.SetParent(box.transform, false);
-            _aiStatsHeader = statsGo.AddComponent<Text>();
-            _aiStatsHeader.font = _uiFont;
-            _aiStatsHeader.fontSize = 18;
-            _aiStatsHeader.color = new Color(1.0f, 0.85f, 0.30f);
-            _aiStatsHeader.alignment = TextAnchor.MiddleCenter;
-            _aiStatsHeader.raycastTarget = false;
-
-            RectTransform statsRt = statsGo.GetComponent<RectTransform>();
-            statsRt.anchorMin = new Vector2(0f, 1f);
-            statsRt.anchorMax = new Vector2(1f, 1f);
-            statsRt.pivot = new Vector2(0.5f, 1f);
-            statsRt.sizeDelta = new Vector2(0f, 35f);
-            statsRt.anchoredPosition = new Vector2(0f, -55f);
-
-            // List Container
-            GameObject listContainerGo = new GameObject("ListContainer");
-            listContainerGo.transform.SetParent(box.transform, false);
-            _listContainer = listContainerGo.transform;
-
-            Image listBgImg = listContainerGo.AddComponent<Image>();
-            listBgImg.color = new Color(0.05f, 0.07f, 0.12f, 0.50f);
-            listBgImg.raycastTarget = false;
-
-            RectTransform listRt = listContainerGo.GetComponent<RectTransform>();
-            listRt.anchorMin = new Vector2(0.03f, 0.12f);
-            listRt.anchorMax = new Vector2(0.97f, 0.82f);
-            listRt.offsetMin = Vector2.zero;
-            listRt.offsetMax = Vector2.zero;
-
-            VerticalLayoutGroup vlg = listContainerGo.AddComponent<VerticalLayoutGroup>();
-            vlg.spacing = 12f;
-            vlg.padding = new RectOffset(15, 15, 15, 15);
-            vlg.childControlWidth = true;
-            vlg.childControlHeight = false;
+            var listContent = CreateGo("ListContent", listBg.transform);
+            _techListContainer = listContent;
+            FullStretch(listContent.GetComponent<RectTransform>() ?? listContent.AddComponent<RectTransform>());
+            var vlg = listContent.AddComponent<VerticalLayoutGroup>();
+            vlg.spacing = 6; vlg.padding = new RectOffset(8, 8, 8, 8);
+            vlg.childControlWidth = true; vlg.childControlHeight = false;
             vlg.childForceExpandWidth = true;
 
+            // Detail panel (right 38%)
+            _detailPanel = CreateGo("DetailPanel", box.transform);
+            _detailPanel.AddComponent<Image>().color = new Color(0.06f, 0.08f, 0.13f, 0.9f);
+            SetAnchors(_detailPanel.GetComponent<RectTransform>(), 0.62f, 0.18f, 1f, 0.84f, 5, 5, -5, -5);
+
+            // Active research panel (bottom strip)
+            var activeBg = CreateGo("ActiveBg", box.transform);
+            activeBg.AddComponent<Image>().color = new Color(0.04f, 0.08f, 0.05f, 0.9f);
+            SetAnchors(activeBg.GetComponent<RectTransform>(), 0f, 0.05f, 1f, 0.18f, 5, 5, -5, -5);
+
+            _activeResearchText = MakeText("ActiveText", activeBg.transform, "No active research.", 16,
+                FontStyle.Normal, new Color(0.26f, 0.93f, 0.44f), TextAnchor.MiddleLeft);
+            SetAnchors(_activeResearchText.GetComponent<RectTransform>(), 0f, 0f, 1f, 1f, 10, 5, -10, -5);
+
+            // Status message
+            _statusMessageText = MakeText("StatusMsg", box.transform, "", 15, FontStyle.Bold,
+                new Color(1f, 0.5f, 0.3f), TextAnchor.MiddleCenter);
+            SetAnchors(_statusMessageText.GetComponent<RectTransform>(), 0f, 0f, 1f, 0.05f, 5, 0, -5, 0);
+
             // Close button
-            CreateButton(box.transform, "CLOSE (Esc/F)", new Vector2(0f, 30f), new Vector2(200f, 44f), () => {
-                Debug.Log("[UI] Research Close clicked");
-                CloseWindow();
-            });
+            MakeButton("CLOSE (Esc/F)", box.transform,
+                new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(1f, 0.5f),
+                new Vector2(-10f, 10f), new Vector2(160f, 36f),
+                new Color(0.3f, 0.12f, 0.12f), CloseWindow);
 
             _panel.SetActive(false);
         }
 
-        private GameObject CreateButton(Transform parent, string label, Vector2 pos, Vector2 size, UnityEngine.Events.UnityAction onClick)
+        private void BuildCategoryTabs(Transform parent)
         {
-            GameObject btnGo = new GameObject("Btn_" + label);
-            btnGo.transform.SetParent(parent, false);
+            _tabButtons.Clear();
+            var tabRow = CreateGo("TabRow", parent);
+            SetAnchors(tabRow.GetComponent<RectTransform>() ?? tabRow.AddComponent<RectTransform>(),
+                       0f, 0.84f, 1f, 0.92f, 5, 0, -5, 0);
+            var hlg = tabRow.AddComponent<HorizontalLayoutGroup>();
+            hlg.spacing = 4; hlg.padding = new RectOffset(4, 4, 4, 4);
+            hlg.childControlWidth = true; hlg.childControlHeight = true;
+            hlg.childForceExpandWidth = true;
 
-            Image img = btnGo.AddComponent<Image>();
-            img.color = new Color(0.18f, 0.24f, 0.36f);
-            img.raycastTarget = true;
+            var categories = new (TechCategory cat, string label)[]
+            {
+                (TechCategory.CoreTechnology,  "CORE"),
+                (TechCategory.Intelligence,    "INTELLIGENCE"),
+                (TechCategory.MachineLearning, "ML"),
+                (TechCategory.GenerativeAI,    "GEN AI"),
+                (TechCategory.Software,        "SOFTWARE"),
+                (TechCategory.GameDevelopment, "GAME DEV"),
+                (TechCategory.Infrastructure,  "INFRA"),
+                (TechCategory.AISafety,        "AI SAFETY"),
+            };
 
-            Button btn = btnGo.AddComponent<Button>();
-            ColorBlock cb = btn.colors;
-            cb.normalColor = new Color(0.18f, 0.24f, 0.36f);
-            cb.highlightedColor = new Color(0.28f, 0.38f, 0.58f);
-            cb.pressedColor = new Color(0.12f, 0.16f, 0.24f);
-            btn.colors = cb;
-            btn.onClick.AddListener(onClick);
+            foreach (var (cat, label) in categories)
+            {
+                var catCapture = cat;
+                var btnGo = CreateGo("Tab_" + cat, tabRow.transform);
+                var img = btnGo.AddComponent<Image>();
+                img.color = new Color(0.15f, 0.20f, 0.30f);
+                var btn = btnGo.AddComponent<Button>();
+                btn.onClick.AddListener(() => SelectCategory(catCapture));
+                _tabButtons.Add(btn);
 
-            RectTransform rt = btnGo.GetComponent<RectTransform>();
-            rt.anchorMin = new Vector2(0.5f, 0f);
-            rt.anchorMax = new Vector2(0.5f, 0f);
-            rt.pivot = new Vector2(0.5f, 0.5f);
-            rt.anchoredPosition = pos;
-            rt.sizeDelta = size;
+                var le = btnGo.AddComponent<LayoutElement>();
+                le.minHeight = 30;
 
-            GameObject txtGo = new GameObject("Text");
-            txtGo.transform.SetParent(btnGo.transform, false);
-            Text txt = txtGo.AddComponent<Text>();
-            txt.font = _uiFont;
-            txt.fontSize = 16;
-            txt.fontStyle = FontStyle.Bold;
-            txt.color = Color.white;
-            txt.text = label;
-            txt.alignment = TextAnchor.MiddleCenter;
-            txt.raycastTarget = false;
-
-            RectTransform txtRt = txtGo.GetComponent<RectTransform>();
-            txtRt.anchorMin = Vector2.zero;
-            txtRt.anchorMax = Vector2.one;
-
-            return btnGo;
+                var txtGo = CreateGo("T", btnGo.transform);
+                var txt = txtGo.AddComponent<Text>();
+                txt.font = _uiFont; txt.fontSize = 12; txt.fontStyle = FontStyle.Bold;
+                txt.color = Color.white; txt.text = label;
+                txt.alignment = TextAnchor.MiddleCenter;
+                FullStretch(txtGo.GetComponent<RectTransform>() ?? txtGo.AddComponent<RectTransform>());
+            }
         }
 
-        private void RefreshAIStatsHeader()
+        // ── Data refresh ─────────────────────────────────────────────────────
+        private void RefreshAll()
         {
-            if (_aiStatsHeader == null || AICore.Instance == null) return;
-            _aiStatsHeader.text = $"AI CORE  |  Quality: {AICore.Instance.Quality}   Speed: {AICore.Instance.Speed}   Reasoning: {AICore.Instance.Reasoning}   Creativity: {AICore.Instance.Creativity}   Reliability: {AICore.Instance.Reliability}";
+            RefreshAIStats();
+            SelectCategory(_selectedCategory);
+            RefreshActiveResearch();
+            ShowStatus("");
         }
 
-        private void RebuildEmployeeList()
+        private void RefreshAIStats()
         {
-            if (_listContainer == null && _panel != null)
+            if (_aiStatsText == null || AICore.Instance == null) return;
+            var c = AICore.Instance;
+            _aiStatsText.text =
+                $"Quality:{c.Quality}  Speed:{c.Speed}  Reasoning:{c.Reasoning}  " +
+                $"Creativity:{c.Creativity}  Reliability:{c.Reliability}  Learning:{c.Learning}  " +
+                $"| Compute:{c.CurrentComputeCapacity}  Energy:{c.CurrentEnergyCapacity}";
+        }
+
+        private void SelectCategory(TechCategory cat)
+        {
+            _selectedCategory = cat;
+            _selectedTech = null;
+            RefreshTabColors();
+            RebuildTechList();
+            ClearDetailPanel();
+        }
+
+        private void RefreshTabColors()
+        {
+            var cats = (TechCategory[])System.Enum.GetValues(typeof(TechCategory));
+            for (int i = 0; i < _tabButtons.Count && i < cats.Length; i++)
             {
-                _listContainer = _panel.transform.Find("ContentBox/ListContainer");
+                bool sel = cats[i] == _selectedCategory;
+                var img = _tabButtons[i].GetComponent<Image>();
+                if (img != null) img.color = sel
+                    ? new Color(0.0f, 0.55f, 0.75f)
+                    : new Color(0.15f, 0.20f, 0.30f);
+            }
+        }
+
+        private void RebuildTechList()
+        {
+            if (_techListContainer == null) return;
+            foreach (var c in _techCards) if (c != null) DestroyImmediate(c);
+            _techCards.Clear();
+
+            if (TechnologyDatabase.Instance == null) return;
+            var techs = TechnologyDatabase.Instance.GetByCategory(_selectedCategory);
+            foreach (var tech in techs)
+                _techCards.Add(BuildTechCard(tech));
+        }
+
+        private GameObject BuildTechCard(TechnologyData tech)
+        {
+            var card = CreateGo("Card_" + tech.Id, _techListContainer.transform);
+            var img = card.AddComponent<Image>();
+            Color cardColor = tech.State switch
+            {
+                TechState.Completed   => new Color(0.08f, 0.22f, 0.10f),
+                TechState.Researching => new Color(0.08f, 0.16f, 0.25f),
+                TechState.Available   => new Color(0.12f, 0.14f, 0.22f),
+                _                    => new Color(0.07f, 0.08f, 0.12f),
+            };
+            img.color = cardColor;
+
+            var le = card.AddComponent<LayoutElement>();
+            le.minHeight = 52; le.preferredHeight = 52;
+
+            // State badge
+            string badge = tech.State switch
+            {
+                TechState.Completed   => "[DONE]",
+                TechState.Researching => "[RESEARCHING]",
+                TechState.Available   => "[AVAILABLE]",
+                _                    => "[LOCKED]",
+            };
+            Color badgeColor = tech.State switch
+            {
+                TechState.Completed   => new Color(0.3f, 1f, 0.5f),
+                TechState.Researching => new Color(0.3f, 0.8f, 1f),
+                TechState.Available   => new Color(1f, 0.85f, 0.3f),
+                _                    => new Color(0.5f, 0.5f, 0.5f),
+            };
+
+            var nameTxt = MakeText("Name", card.transform, $"{badge}  {tech.Name}", 14,
+                tech.State == TechState.Available ? FontStyle.Bold : FontStyle.Normal,
+                badgeColor, TextAnchor.MiddleLeft);
+            SetAnchors(nameTxt.GetComponent<RectTransform>(), 0f, 0.5f, 0.75f, 1f, 6, 2, -2, -2);
+
+            var costTxt = MakeText("Cost", card.transform,
+                $"${tech.MoneyCost:N0}  ·  {tech.ResearchTimeDays}d", 12,
+                FontStyle.Normal, new Color(0.8f, 0.75f, 0.6f), TextAnchor.MiddleLeft);
+            SetAnchors(costTxt.GetComponent<RectTransform>(), 0f, 0f, 0.75f, 0.5f, 6, 2, -2, -2);
+
+            // Click to select (only clickable if not locked/completed)
+            if (tech.State == TechState.Available || tech.State == TechState.Researching)
+            {
+                var btn = card.AddComponent<Button>();
+                var techCapture = tech;
+                btn.onClick.AddListener(() => SelectTech(techCapture));
             }
 
-            if (_listContainer == null || _panel == null)
+            return card;
+        }
+
+        private void SelectTech(TechnologyData tech)
+        {
+            _selectedTech = tech;
+            BuildDetailPanel(tech);
+        }
+
+        private void BuildDetailPanel(TechnologyData tech)
+        {
+            if (_detailPanel == null) return;
+            // Clear old children
+            for (int i = _detailPanel.transform.childCount - 1; i >= 0; i--)
+                DestroyImmediate(_detailPanel.transform.GetChild(i).gameObject);
+
+            float y = -10f;
+            float lineH = 22f;
+
+            void AddLine(string t, Color c, FontStyle fs = FontStyle.Normal, int sz = 14)
             {
-                Debug.Log("[Research TRACE] _listContainer or _panel null in RebuildEmployeeList. Rebuilding UI...");
-                BuildUI();
+                var go = CreateGo("L", _detailPanel.transform);
+                var txt = go.AddComponent<Text>();
+                txt.font = _uiFont; txt.fontSize = sz; txt.fontStyle = fs;
+                txt.color = c; txt.text = t; txt.alignment = TextAnchor.UpperLeft;
+                var rt = go.GetComponent<RectTransform>();
+                rt.anchorMin = new Vector2(0f, 1f); rt.anchorMax = new Vector2(1f, 1f);
+                rt.pivot = new Vector2(0f, 1f);
+                rt.anchoredPosition = new Vector2(8f, y);
+                rt.sizeDelta = new Vector2(-16f, lineH);
+                y -= lineH + 2f;
             }
 
-            Debug.Log($"[Research TRACE] RebuildEmployeeList ENTER. _listContainer null? {(_listContainer == null)}, EmployeeManager.Instance null? {(EmployeeManager.Instance == null)}");
-            if (_listContainer == null || EmployeeManager.Instance == null)
+            AddLine(tech.Name, new Color(0f, 0.9f, 1f), FontStyle.Bold, 16);
+            y -= 4f;
+            AddLine(tech.Description, Color.white, FontStyle.Normal, 13);
+            y -= 6f;
+            AddLine($"Research: {tech.ResearchTimeDays} game-days", new Color(1f, 0.85f, 0.3f));
+            AddLine($"Cost: ${tech.MoneyCost:N0}", new Color(0.3f, 1f, 0.5f));
+            if (tech.ComputeRequired > 0)
+                AddLine($"Compute: {tech.ComputeRequired}", new Color(0.5f, 0.8f, 1f));
+            if (tech.EnergyRequired > 0)
+                AddLine($"Energy: {tech.EnergyRequired}", new Color(1f, 0.6f, 0.2f));
+            if (tech.MinEmployees > 0)
+                AddLine($"Min Employees: {tech.MinEmployees}", Color.white);
+
+            if (tech.PrerequisiteIds.Count > 0)
             {
-                Debug.LogWarning($"[Research TRACE] RebuildEmployeeList ABORTED due to null references! _listContainer null? {(_listContainer == null)}, EmployeeManager null? {(EmployeeManager.Instance == null)}");
+                y -= 4f;
+                AddLine("Requires:", new Color(0.9f, 0.7f, 0.4f), FontStyle.Bold);
+                foreach (var pid in tech.PrerequisiteIds)
+                {
+                    var prereq = TechnologyDatabase.Instance?.GetById(pid);
+                    string pname = prereq?.Name ?? pid;
+                    bool done = prereq?.IsCompleted ?? false;
+                    AddLine($"  • {pname}", done ? new Color(0.4f, 0.9f, 0.4f) : new Color(0.9f, 0.4f, 0.4f));
+                }
+            }
+
+            // START RESEARCH button (only if available)
+            if (tech.State == TechState.Available &&
+                TechnologyResearchManager.Instance?.ActiveResearch == null)
+            {
+                var techCapture = tech;
+                MakeButton("START RESEARCH", _detailPanel.transform,
+                    new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0.5f, 0.5f),
+                    new Vector2(0f, 30f), new Vector2(180f, 40f),
+                    new Color(0.1f, 0.5f, 0.25f),
+                    () =>
+                    {
+                        if (TechnologyResearchManager.Instance != null)
+                        {
+                            bool ok = TechnologyResearchManager.Instance.TryStartResearch(techCapture);
+                            if (ok) { RefreshAll(); }
+                        }
+                    });
+            }
+            else if (tech.State == TechState.Researching)
+            {
+                AddLine("[CURRENTLY RESEARCHING]", new Color(0.3f, 0.8f, 1f), FontStyle.Bold);
+            }
+            else if (tech.State == TechState.Completed)
+            {
+                AddLine("[RESEARCH COMPLETE]", new Color(0.3f, 1f, 0.5f), FontStyle.Bold);
+            }
+            else if (TechnologyResearchManager.Instance?.ActiveResearch != null)
+            {
+                AddLine("Another research is active.", new Color(1f, 0.5f, 0.3f));
+            }
+        }
+
+        private void ClearDetailPanel()
+        {
+            if (_detailPanel == null) return;
+            for (int i = _detailPanel.transform.childCount - 1; i >= 0; i--)
+                DestroyImmediate(_detailPanel.transform.GetChild(i).gameObject);
+        }
+
+        private void RefreshActiveResearch()
+        {
+            if (_activeResearchText == null) return;
+            var rm = TechnologyResearchManager.Instance;
+            if (rm == null || rm.ActiveResearch == null)
+            {
+                _activeResearchText.text = "ACTIVE RESEARCH:  None";
                 return;
             }
-
-            // Safely destroy all previous row GameObjects
-            for (int i = _listContainer.childCount - 1; i >= 0; i--)
-            {
-                DestroyImmediate(_listContainer.GetChild(i).gameObject);
-            }
-
-            var employees = EmployeeManager.Instance.Employees;
-            int empCount = employees != null ? employees.Count : 0;
-            Debug.Log($"[Research TRACE] Employee count = {empCount}");
-
-            if (empCount == 0)
-            {
-                Debug.Log("[Research TRACE] Empty state created: 'No employees hired yet. Press R to recruit AI Researchers!'");
-                GameObject emptyGo = new GameObject("EmptyText");
-                emptyGo.transform.SetParent(_listContainer, false);
-                Text t = emptyGo.AddComponent<Text>();
-                t.font = _uiFont;
-                t.fontSize = 20;
-                t.fontStyle = FontStyle.Bold;
-                t.color = new Color(0.85f, 0.88f, 0.95f);
-                t.text = "No employees hired yet. Press R to recruit AI Researchers!";
-                t.alignment = TextAnchor.MiddleCenter;
-                t.raycastTarget = false;
-
-                LayoutElement le = emptyGo.AddComponent<LayoutElement>();
-                le.minHeight = 100f;
-                le.preferredHeight = 100f;
-            }
-            else
-            {
-                foreach (var emp in employees)
-                {
-                    if (emp != null)
-                    {
-                        Debug.Log($"[Research TRACE] Creating employee row for {emp.Data?.employeeName}");
-                        CreateEmployeeRow(emp);
-                    }
-                }
-            }
-
-            Canvas.ForceUpdateCanvases();
-            LayoutRebuilder.ForceRebuildLayoutImmediate(_listContainer.GetComponent<RectTransform>());
-            Debug.Log("[Research TRACE] RebuildEmployeeList EXIT.");
+            var t = rm.ActiveResearch;
+            int pct = Mathf.RoundToInt(rm.ActiveProgress * 100f);
+            int workers = rm.GetWorkingEmployeeCount();
+            float estDays = rm.GetEstimatedRemainingDays();
+            string bar = ProgressBar(rm.ActiveProgress, 20);
+            _activeResearchText.text =
+                $"RESEARCHING: {t.Name}   {bar} {pct}%   " +
+                $"Team: {workers} employees   Est: {estDays:F1} days remaining";
         }
 
-        private void CreateEmployeeRow(EmployeeController emp)
+        private string ProgressBar(float f, int width)
         {
-            GameObject rowGo = new GameObject("Row_" + emp.Data?.employeeName);
-            rowGo.transform.SetParent(_listContainer, false);
-
-            Image rowImg = rowGo.AddComponent<Image>();
-            rowImg.color = new Color(0.14f, 0.17f, 0.25f, 0.98f);
-            rowImg.raycastTarget = true;
-
-            LayoutElement rowLe = rowGo.AddComponent<LayoutElement>();
-            rowLe.minHeight = 85f;
-            rowLe.preferredHeight = 85f;
-
-            var activeAssign = ResearchManager.Instance != null ? ResearchManager.Instance.GetAssignment(emp) : null;
-            AIStatType currentTarget = activeAssign != null ? activeAssign.targetStat : AIStatType.Reasoning;
-
-            // Employee Name, Role & Active Task Label
-            GameObject nameGo = new GameObject("EmpName");
-            nameGo.transform.SetParent(rowGo.transform, false);
-            Text nameTxt = nameGo.AddComponent<Text>();
-            nameTxt.font = _uiFont;
-            nameTxt.fontSize = 15;
-            nameTxt.fontStyle = FontStyle.Bold;
-            nameTxt.color = Color.white;
-            nameTxt.text = $"{emp.Data?.employeeName}\n<color=#FFD700><size=13>{emp.Data?.role}</size></color>\n<color=#00E0FF><size=12>Task: Improve {currentTarget}</size></color>";
-            nameTxt.raycastTarget = false;
-
-            RectTransform nameRt = nameGo.GetComponent<RectTransform>();
-            nameRt.anchorMin = new Vector2(0.02f, 0f);
-            nameRt.anchorMax = new Vector2(0.28f, 1f);
-            nameRt.offsetMin = Vector2.zero;
-            nameRt.offsetMax = Vector2.zero;
-
-            // Task Selector Buttons (Quality, Speed, Reasoning, Creativity, Reliability)
-            AIStatType[] stats = new[] { AIStatType.Quality, AIStatType.Speed, AIStatType.Reasoning, AIStatType.Creativity, AIStatType.Reliability };
-            float startX = 0.30f;
-            float btnWidth = 0.125f;
-
-            for (int i = 0; i < stats.Length; i++)
-            {
-                AIStatType statType = stats[i];
-                bool isSelected = (statType == currentTarget);
-
-                GameObject taskBtnGo = new GameObject("TaskBtn_" + statType);
-                taskBtnGo.transform.SetParent(rowGo.transform, false);
-
-                Image btnImg = taskBtnGo.AddComponent<Image>();
-                btnImg.color = isSelected ? new Color(0.0f, 0.65f, 0.85f) : new Color(0.22f, 0.26f, 0.36f);
-                btnImg.raycastTarget = true;
-
-                Button btn = taskBtnGo.AddComponent<Button>();
-                btn.onClick.AddListener(() => {
-                    Debug.Log($"[UI] Research task selected: Improve {statType} for {emp.Data?.employeeName}");
-                    if (ResearchManager.Instance != null)
-                    {
-                        ResearchManager.Instance.AssignTask(emp, statType);
-                        RebuildEmployeeList();
-                    }
-                });
-
-                RectTransform taskRt = taskBtnGo.GetComponent<RectTransform>();
-                taskRt.anchorMin = new Vector2(startX + (i * btnWidth) + 0.005f, 0.45f);
-                taskRt.anchorMax = new Vector2(startX + ((i + 1) * btnWidth) - 0.005f, 0.90f);
-                taskRt.offsetMin = Vector2.zero;
-                taskRt.offsetMax = Vector2.zero;
-
-                GameObject taskTxtGo = new GameObject("Text");
-                taskTxtGo.transform.SetParent(taskBtnGo.transform, false);
-                Text taskTxt = taskTxtGo.AddComponent<Text>();
-                taskTxt.font = _uiFont;
-                taskTxt.fontSize = 12;
-                taskTxt.fontStyle = FontStyle.Bold;
-                taskTxt.color = Color.white;
-                taskTxt.text = statType.ToString();
-                taskTxt.alignment = TextAnchor.MiddleCenter;
-                taskTxt.raycastTarget = false;
-
-                RectTransform taskTxtRt = taskTxtGo.GetComponent<RectTransform>();
-                taskTxtRt.anchorMin = Vector2.zero;
-                taskTxtRt.anchorMax = Vector2.one;
-            }
-
-            // Progress Bar Background
-            GameObject barBgGo = new GameObject("ProgressBarBg");
-            barBgGo.transform.SetParent(rowGo.transform, false);
-            Image barBgImg = barBgGo.AddComponent<Image>();
-            barBgImg.color = new Color(0.10f, 0.12f, 0.18f);
-            barBgImg.raycastTarget = false;
-
-            RectTransform barBgRt = barBgGo.GetComponent<RectTransform>();
-            barBgRt.anchorMin = new Vector2(0.305f, 0.10f);
-            barBgRt.anchorMax = new Vector2(0.925f, 0.38f);
-            barBgRt.offsetMin = Vector2.zero;
-            barBgRt.offsetMax = Vector2.zero;
-
-            // Progress Bar Fill
-            GameObject barFillGo = new GameObject("ProgressBarFill");
-            barFillGo.name = "ProgressFill_" + emp.GetInstanceID();
-            barFillGo.transform.SetParent(barBgGo.transform, false);
-            Image barFillImg = barFillGo.AddComponent<Image>();
-            barFillImg.color = new Color(0.26f, 0.93f, 0.44f);
-            barFillImg.raycastTarget = false;
-
-            RectTransform barFillRt = barFillGo.GetComponent<RectTransform>();
-            float initialFill = activeAssign != null ? activeAssign.progress / 100f : 0f;
-            barFillRt.anchorMin = Vector2.zero;
-            barFillRt.anchorMax = new Vector2(initialFill, 1f);
-            barFillRt.offsetMin = Vector2.zero;
-            barFillRt.offsetMax = Vector2.zero;
+            int filled = Mathf.RoundToInt(f * width);
+            return "[" + new string('█', filled) + new string('░', width - filled) + "]";
         }
 
-        private void OnProgressUpdated(ResearchAssignment assign)
+        private void ShowStatus(string msg)
         {
-            if (this == null || gameObject == null) return;
-            UpdateProgress();
+            if (_statusMessageText != null) _statusMessageText.text = msg;
         }
 
-        private void UpdateProgress()
+        // ── UI Helpers ───────────────────────────────────────────────────────
+        private Text MakeText(string name, Transform parent, string txt, int size, FontStyle style,
+            Color color, TextAnchor anchor)
         {
-            if (!_isOpen || this == null || _listContainer == null || EmployeeManager.Instance == null || ResearchManager.Instance == null) return;
+            var go = CreateGo(name, parent);
+            go.AddComponent<RectTransform>();
+            var t = go.AddComponent<Text>();
+            t.font = _uiFont; t.fontSize = size; t.fontStyle = style;
+            t.color = color; t.text = txt; t.alignment = anchor;
+            t.raycastTarget = false;
+            return t;
+        }
 
-            foreach (var emp in EmployeeManager.Instance.Employees)
-            {
-                if (emp == null) continue;
-                var assign = ResearchManager.Instance.GetAssignment(emp);
-                if (assign == null) continue;
+        private void MakeButton(string label, Transform parent,
+            Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot,
+            Vector2 apos, Vector2 size, Color bgColor, UnityEngine.Events.UnityAction onClick)
+        {
+            var go = CreateGo("Btn_" + label, parent);
+            go.AddComponent<Image>().color = bgColor;
+            var btn = go.AddComponent<Button>();
+            btn.onClick.AddListener(onClick);
+            var rt = go.GetComponent<RectTransform>();
+            rt.anchorMin = anchorMin; rt.anchorMax = anchorMax; rt.pivot = pivot;
+            rt.anchoredPosition = apos; rt.sizeDelta = size;
 
-                Transform fillT = _listContainer.Find($"Row_{emp.Data?.employeeName}/ProgressBarBg/ProgressFill_{emp.GetInstanceID()}");
-                if (fillT != null)
-                {
-                    RectTransform fillRt = fillT.GetComponent<RectTransform>();
-                    if (fillRt != null)
-                    {
-                        fillRt.anchorMax = new Vector2(Mathf.Clamp01(assign.progress / 100f), 1f);
-                    }
-                }
-            }
+            var tgo = CreateGo("T", go.transform);
+            tgo.AddComponent<RectTransform>();
+            FullStretch(tgo.GetComponent<RectTransform>());
+            var t = tgo.AddComponent<Text>();
+            t.font = _uiFont; t.fontSize = 14; t.fontStyle = FontStyle.Bold;
+            t.color = Color.white; t.text = label; t.alignment = TextAnchor.MiddleCenter;
+        }
+
+        private static GameObject CreateGo(string name, Transform parent)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent, false);
+            go.AddComponent<RectTransform>();
+            return go;
+        }
+
+        private static void FullStretch(RectTransform rt)
+        {
+            rt.anchorMin = Vector2.zero; rt.anchorMax = Vector2.one;
+            rt.offsetMin = Vector2.zero; rt.offsetMax = Vector2.zero;
+        }
+
+        private static void SetAnchors(RectTransform rt,
+            float axMin, float ayMin, float axMax, float ayMax,
+            float oxMin, float oyMin, float oxMax, float oyMax)
+        {
+            rt.anchorMin = new Vector2(axMin, ayMin); rt.anchorMax = new Vector2(axMax, ayMax);
+            rt.offsetMin = new Vector2(oxMin, oyMin); rt.offsetMax = new Vector2(oxMax, oyMax);
         }
     }
 }

@@ -94,15 +94,13 @@ namespace GameDevStudio.AI
                     assign.progress += baseSpeed * dt;
                     OnResearchProgressUpdated?.Invoke(assign);
 
+                    // Note: stat improvements are now handled by TechnologyResearchManager
+                    // when a technology is fully researched. This loop only drives progress
+                    // tracking for UI display (e.g., per-employee work status).
                     if (assign.progress >= 100f)
                     {
                         assign.progress = 0f;
-                        int oldVal = AICore.Instance != null ? AICore.Instance.GetStat(assign.targetStat) : 0;
-                        if (AICore.Instance != null) AICore.Instance.ImproveStat(assign.targetStat, 1);
-                        int newVal = AICore.Instance != null ? AICore.Instance.GetStat(assign.targetStat) : 0;
-
-                        Debug.Log($"[AI Research] {assign.employee.Data.employeeName} completed Improve {assign.targetStat}! {assign.targetStat}: {oldVal} → {newVal}");
-                        OnResearchCompleted?.Invoke(assign.employee, assign.targetStat, newVal);
+                        // Reset so the employee keeps "working" — actual outcomes come from TechResearch.
                     }
                 }
             }

@@ -5,6 +5,7 @@ using GameDevStudio.Office;
 using GameDevStudio.Economy;
 using GameDevStudio.UI;
 using GameDevStudio.Characters;
+using GameDevStudio.AI;
 
 namespace GameDevStudio.Core
 {
@@ -175,12 +176,14 @@ namespace GameDevStudio.Core
         // ── AI & Research System (Aşama 6) ──────────────────
         private void SetupAISystem()
         {
-            if (GameDevStudio.AI.AICore.Instance == null && FindFirstObjectByType<GameDevStudio.AI.AICore>() == null)
+            if (AICore.Instance == null && FindFirstObjectByType<AICore>() == null)
             {
                 GameObject go = new GameObject("AISystem");
-                go.AddComponent<GameDevStudio.AI.AICore>();
-                go.AddComponent<GameDevStudio.AI.ResearchManager>();
-                Debug.Log("[SceneInitializer] AISystem (AICore + ResearchManager) created.");
+                go.AddComponent<AICore>();
+                go.AddComponent<ResearchManager>();
+                go.AddComponent<TechnologyDatabase>();
+                go.AddComponent<TechnologyResearchManager>();
+                Debug.Log("[SceneInitializer] AISystem (AICore + ResearchManager + TechDB + TechResearch) created.");
             }
         }
 
