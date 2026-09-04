@@ -188,6 +188,26 @@ namespace GameDevStudio.AI
         /// Returns the number of working employees (for UI display)
         public int GetWorkingEmployeeCount() => CountWorkingEmployees();
 
+        /// <summary>Called by SaveManager when loading a save to restore active research state without deducting money.</summary>
+        public void LoadActiveResearch(string activeTechId, float progress)
+        {
+            ActiveResearch = null;
+
+            if (string.IsNullOrEmpty(activeTechId)) return;
+            if (TechnologyDatabase.Instance == null) return;
+
+            var tech = TechnologyDatabase.Instance.GetById(activeTechId);
+            if (tech != null && !tech.IsCompleted)
+            {
+                tech.State = TechState.Researching;
+                tech.ResearchProgress = Mathf.Clamp01(progress);
+                ActiveResearch = tech;
+
+                Debug.Log($"[TechResearch] Active research restored: {tech.Name} ({tech.ResearchProgress * 100f:F1}%)");
+                OnResearchStarted?.Invoke(tech);
+            }
+        }
+
         /// Estimate remaining time in game-days
         public float GetEstimatedRemainingDays()
         {

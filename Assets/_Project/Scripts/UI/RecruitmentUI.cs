@@ -94,6 +94,13 @@ namespace GameDevStudio.UI
 
         private void Update()
         {
+            // All gameplay hotkeys blocked outside an active session
+            if (!Flow.GameStateManager.IsGameplayActive)
+            {
+                if (_isOpen) CloseWindow();
+                return;
+            }
+
             if (_keyR != null && _keyR.WasPressedThisFrame())
             {
                 Debug.Log($"[Recruitment TRACE] R key pressed! IsPlacing = {Office.FurniturePlacer.IsPlacing}");

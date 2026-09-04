@@ -218,6 +218,13 @@ namespace GameDevStudio.UI
         // ── Update HUD values per frame ─────────────────────────────────
         private void Update()
         {
+            bool isGameplay = Flow.GameStateManager.IsGameplayActive;
+            if (_canvas != null && _canvas.gameObject.activeSelf != isGameplay)
+            {
+                _canvas.gameObject.SetActive(isGameplay);
+            }
+            if (!isGameplay) return;
+
             int money    = MoneyManager.Instance    != null ? MoneyManager.Instance.CurrentMoney                : 0;
             int day      = GameTimeManager.Instance != null ? GameTimeManager.Instance.CurrentDay             : 1;
             string time  = GameTimeManager.Instance != null ? GameTimeManager.Instance.GetFormattedTime()     : "08:00";

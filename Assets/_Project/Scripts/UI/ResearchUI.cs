@@ -87,6 +87,13 @@ namespace GameDevStudio.UI
 
         private void Update()
         {
+            // All gameplay hotkeys blocked outside an active session
+            if (!Flow.GameStateManager.IsGameplayActive)
+            {
+                if (_isOpen) CloseWindow();
+                return;
+            }
+
             if (_keyF != null && _keyF.WasPressedThisFrame())
             {
                 if (!Office.FurniturePlacer.IsPlacing)

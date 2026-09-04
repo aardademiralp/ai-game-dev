@@ -146,24 +146,53 @@ namespace GameDevStudio.Save
             }
 
             // Employees
+            OfficeGrid officeGrid = FindFirstObjectByType<OfficeGrid>();
+
             if (EmployeeManager.Instance != null)
             {
                 foreach (var emp in EmployeeManager.Instance.Employees)
                 {
                     if (emp == null || emp.Data == null) continue;
                     var d = emp.Data;
+
+                    int gx = -1;
+                    int gz = -1;
+                    if (officeGrid != null && officeGrid.Data != null)
+                    {
+                        officeGrid.Data.WorldToCell(emp.transform.position, officeGrid.Origin, out gx, out gz);
+                    }
+
+                    int wsGx = -1;
+                    int wsGz = -1;
+                    string wsId = "NONE";
+                    if (emp.AssignedWorkstation != null && officeGrid != null && officeGrid.Data != null)
+                    {
+                        if (officeGrid.Data.WorldToCell(emp.AssignedWorkstation.transform.position, officeGrid.Origin, out int wx, out int wz))
+                        {
+                            wsGx = wx;
+                            wsGz = wz;
+                            wsId = $"WS_{wx}_{wz}";
+                        }
+                    }
+
                     var entry = new EmployeeSaveEntry
                     {
-                        EmployeeName     = d.employeeName,
-                        RoleString       = d.role,
-                        AppearanceStyle  = (int)d.appearanceStyle,
-                        Reasoning        = d.reasoningSkill,
-                        Engineering      = d.engineeringSkill,
-                        Creativity       = d.creativitySkill,
-                        Leadership       = d.dataSkill,  // closest proxy
-                        SalaryPerDay     = d.salaryPerDay,
-                        TraitFlags       = (int)d.traits,
-                        MoveSpeed        = d.moveSpeed
+                        EmployeeName      = d.employeeName,
+                        RoleString        = d.role,
+                        AppearanceStyle   = (int)d.appearanceStyle,
+                        Reasoning         = d.reasoningSkill,
+                        Engineering       = d.engineeringSkill,
+                        Creativity        = d.creativitySkill,
+                        Leadership        = d.dataSkill,  // closest proxy
+                        SalaryPerDay      = d.salaryPerDay,
+                        TraitFlags        = (int)d.traits,
+                        MoveSpeed         = d.moveSpeed,
+                        GridX             = gx,
+                        GridZ             = gz,
+                        WorkstationGridX  = wsGx,
+                        WorkstationGridZ  = wsGz,
+                        WorkstationId     = wsId,
+                        EmployeeWorkState = (int)emp.CurrentState
                     };
                     data.Employees.Add(entry);
                 }
@@ -207,38 +236,47 @@ namespace GameDevStudio.Save
 
         private void ApplySaveData(GameSaveData data)
         {
-            // Company name is applied through GameFlowManager
+            // 1. Lock Input / State
+            GameStateManager.Instance?.GoLoadGame();
+
+            // 2. Basic Systems: Company name & Difficulty
             if (GameFlowManager.Instance != null)
                 GameFlowManager.Instance.SetCompanyName(data.Company.CompanyName);
 
-            // Difficulty
             if (DifficultyManager.Instance != null)
                 DifficultyManager.Instance.SetDifficulty((DifficultyType)data.Company.DifficultyType);
 
-            // Money — set directly
+            // 3. Money
             if (MoneyManager.Instance != null)
                 MoneyManager.Instance.SetMoney(data.Company.Money);
 
-            // Time
+            // 4. Time
             if (Core.GameTimeManager.Instance != null)
                 Core.GameTimeManager.Instance.LoadState(data.GameTime.Day, data.GameTime.Hour,
                                                         data.GameTime.Minute, data.GameTime.SpeedMultiplier);
 
-            // Office level
+            // 5. Office Level (physical floor & grid resize)
             if (OfficeManager.Instance != null)
                 OfficeManager.Instance.LoadLevelIndex(data.Office.CurrentLevelIndex);
 
-            // Employees: clear existing and respawn
+            // 6. Employees & Positions
             if (EmployeeManager.Instance != null)
                 EmployeeManager.Instance.LoadEmployees(data.Employees);
 
-            // AI Core stats
+            // 7. AI Core Stats
             if (AICore.Instance != null)
                 AICore.Instance.LoadStats(data.AICore);
 
-            // Technology states
+            // 8. Completed Technologies
             if (TechnologyDatabase.Instance != null)
                 TechnologyDatabase.Instance.LoadStates(data.Technology);
+
+            // 9. Active Research
+            if (TechnologyResearchManager.Instance != null)
+                TechnologyResearchManager.Instance.LoadActiveResearch(data.Technology.ActiveTechId, data.Technology.ActiveProgress);
+
+            // 10. Gameplay State Resume
+            GameStateManager.Instance?.GoGameplay();
         }
 
         // ── Helpers ───────────────────────────────────────────────────────────

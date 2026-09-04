@@ -89,6 +89,9 @@ namespace GameDevStudio.Core
 
         private void HandleInput()
         {
+            // All time controls are silenced outside of active gameplay
+            if (!Flow.GameStateManager.IsGameplayActive) return;
+
             if (_keySpace.WasPressedThisFrame())
             {
                 TogglePause();

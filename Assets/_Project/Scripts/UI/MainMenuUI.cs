@@ -77,9 +77,24 @@ namespace GameDevStudio.UI
             _settingsScreen.SetActive(s == Screen.Settings);
             _langScreen.SetActive(s == Screen.Language);
 
-            if (s == Screen.Root)     RefreshRootButtons();
-            if (s == Screen.LoadGame) RefreshLoadSlots();
-            if (s == Screen.Settings) SyncSettingsSliders();
+            if (s == Screen.Root)
+            {
+                GameStateManager.Instance?.GoMainMenu();
+                RefreshRootButtons();
+            }
+            else if (s == Screen.NewGame)
+            {
+                GameStateManager.Instance?.GoNewGame();
+            }
+            else if (s == Screen.LoadGame)
+            {
+                GameStateManager.Instance?.GoLoadGame();
+                RefreshLoadSlots();
+            }
+            else if (s == Screen.Settings)
+            {
+                SyncSettingsSliders();
+            }
         }
 
         private void RefreshRootButtons()
@@ -183,10 +198,10 @@ namespace GameDevStudio.UI
             scaler.matchWidthOrHeight  = 0.5f;
             canvasGo.gameObject.AddComponent<GraphicRaycaster>();
 
-            // ── Full-screen dark overlay ─────────────────────────────────────
+            // ── Full-screen dark opaque overlay (hides 3D game world completely) ──
             var overlay = MakeRT(_canvas.transform, "Overlay");
             Stretch(overlay);
-            AddImage(overlay, new Color(0.04f, 0.06f, 0.13f, 0.98f));
+            AddImage(overlay, new Color(0.04f, 0.06f, 0.13f, 1.0f));
 
             // ── Build each screen ────────────────────────────────────────────
             _rootScreen    = BuildRootScreen(overlay).gameObject;
@@ -204,11 +219,7 @@ namespace GameDevStudio.UI
         {
             var rt = MakeRT(parent, "Screen_Root"); Stretch(rt);
 
-            // Logo area
-            Label(rt, "GAME DEV STUDIO", 0, 180, 700, 80, 54, new Color(0.3f, 0.82f, 1f), FontStyle.Bold);
-            Label(rt, "AI Management Simulator", 0, 110, 500, 36, 22, new Color(0.7f, 0.8f, 0.9f));
-
-            float y = 10f;
+            float y = 140f;
             _btnNew      = MenuBtn(rt, "btn_new",  "YENİ OYUN",   0, y); y -= 72;
             _btnLoad     = MenuBtn(rt, "btn_load", "OYUN YÜKLE",  0, y); y -= 72;
             var btnSet   = MenuBtn(rt, "btn_set",  "AYARLAR",     0, y); y -= 72;

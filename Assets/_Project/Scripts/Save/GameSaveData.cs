@@ -41,6 +41,14 @@ namespace GameDevStudio.Save
         public int    SalaryPerDay;
         public int    TraitFlags;      // cast to EmployeeTrait flags
         public float  MoveSpeed;
+        public int    GridX = -1;
+        public int    GridZ = -1;
+
+        // Workstation & State persistence
+        public int    WorkstationGridX  = -1;
+        public int    WorkstationGridZ  = -1;
+        public string WorkstationId     = "";
+        public int    EmployeeWorkState = 0; // cast to EmployeeState
     }
 
     [Serializable]

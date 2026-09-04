@@ -134,6 +134,71 @@ namespace GameDevStudio.Characters
             }
         }
 
+        /// <summary>
+        /// Restores employee work state directly after loading a save file.
+        /// Snaps position to chair cushion, sets sitting animation pose, and disables NavMeshAgent.
+        /// </summary>
+        public void RestoreWorkState(EmployeeState targetState)
+        {
+            if (AssignedWorkstation == null)
+            {
+                CurrentState = EmployeeState.Idle;
+                return;
+            }
+
+            if (_agent == null) _agent = GetComponent<NavMeshAgent>();
+
+            if (targetState == EmployeeState.WorkingSeated && TargetChair != null)
+            {
+                // Disable NavMeshAgent so pathing / carving doesn't move or offset the character
+                if (_agent != null && _agent.enabled)
+                {
+                    _agent.isStopped = true;
+                    _agent.ResetPath();
+                    _agent.enabled = false;
+                }
+
+                // Snap exact position to seat cushion
+                Vector3 seatPos = TargetChair.SeatPosition;
+                transform.position = new Vector3(seatPos.x, TargetChair.transform.position.y, seatPos.z);
+
+                // Face the workstation computer
+                Vector3 toComputer = AssignedWorkstation.transform.position - transform.position;
+                toComputer.y = 0f;
+                if (toComputer.sqrMagnitude > 0.001f)
+                {
+                    TargetChair.WorkDirection = toComputer.normalized;
+                    transform.rotation = Quaternion.LookRotation(TargetChair.WorkDirection, Vector3.up);
+                }
+
+                // Apply sitting pose visually
+                EmployeeModelBuilder.SetSittingPose(VisualModel);
+                CurrentState = EmployeeState.WorkingSeated;
+                Debug.Log($"[EmployeeController] Seated work state restored for {Data?.employeeName} at {transform.position}");
+            }
+            else if (targetState == EmployeeState.WorkingStanding || (targetState == EmployeeState.WorkingSeated && TargetChair == null))
+            {
+                if (_agent != null && _agent.enabled)
+                {
+                    _agent.isStopped = true;
+                    _agent.ResetPath();
+                }
+
+                Vector3 toComp = AssignedWorkstation.transform.position - transform.position;
+                toComp.y = 0f;
+                if (toComp.sqrMagnitude > 0.001f)
+                    transform.rotation = Quaternion.LookRotation(toComp.normalized, Vector3.up);
+
+                EmployeeModelBuilder.SetStandingPose(VisualModel);
+                CurrentState = EmployeeState.WorkingStanding;
+                Debug.Log($"[EmployeeController] Standing work state restored for {Data?.employeeName}");
+            }
+            else
+            {
+                CurrentState = targetState;
+            }
+        }
+
         // ─────────────────────────────────────────────────────────
         private void TryFindAndGoToWorkstation()
         {

@@ -44,6 +44,9 @@ namespace GameDevStudio.Camera
 
         private void LateUpdate()
         {
+            // Camera movement is disabled outside of active gameplay
+            if (!Flow.GameStateManager.IsGameplayActive) return;
+
             HandlePan();
             HandleZoom();
             ApplyTransform();

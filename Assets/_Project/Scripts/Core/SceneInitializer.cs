@@ -79,6 +79,12 @@ namespace GameDevStudio.Core
                 GameObject go = new GameObject("DifficultyManager");
                 go.AddComponent<DifficultyManager>();
             }
+            // GameStateManager MUST exist before GameFlowManager.Start() runs
+            if (FindFirstObjectByType<GameStateManager>() == null)
+            {
+                GameObject go = new GameObject("GameStateManager");
+                go.AddComponent<GameStateManager>();
+            }
             if (FindFirstObjectByType<GameFlowManager>() == null)
             {
                 GameObject go = new GameObject("GameFlowManager");

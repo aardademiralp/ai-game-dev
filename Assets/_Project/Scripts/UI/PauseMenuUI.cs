@@ -51,8 +51,8 @@ namespace GameDevStudio.UI
         {
             if (_keyEsc.WasPressedThisFrame())
             {
-                if (GameFlowManager.Instance == null || !GameFlowManager.Instance.SessionActive)
-                    return;
+                // ESC only opens pause menu during active gameplay
+                if (!Flow.GameStateManager.IsGameplayActive) return;
 
                 if (_canvas != null && _canvas.gameObject.activeSelf)
                     OnResumeClicked();
@@ -64,9 +64,10 @@ namespace GameDevStudio.UI
         // ── Public API ────────────────────────────────────────────────────
         public void Show()
         {
-            // Pause game time while menu is open
+            // Pause game time and update state machine
             _wasTimePausedBeforeMenu = Core.GameTimeManager.Instance?.IsPaused ?? false;
             Core.GameTimeManager.Instance?.SetPause(true);
+            Flow.GameStateManager.Instance?.GoPaused();
 
             if (_canvas != null) _canvas.gameObject.SetActive(true);
             ShowMainPanel();
@@ -77,9 +78,11 @@ namespace GameDevStudio.UI
         {
             if (_canvas != null) _canvas.gameObject.SetActive(false);
 
-            // Restore time pause state
+            // Restore time pause state and resume gameplay state
             if (!_wasTimePausedBeforeMenu)
                 Core.GameTimeManager.Instance?.SetPause(false);
+
+            Flow.GameStateManager.Instance?.GoResume();
         }
 
         // ── UI Builder ────────────────────────────────────────────────────
