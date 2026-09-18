@@ -119,5 +119,22 @@ namespace GameDevStudio.AI
             OnComputeChanged?.Invoke(computeCapacity);
             OnEnergyChanged?.Invoke(energyCapacity);
         }
+
+        /// <summary>Resets AI Core stats and infrastructure capacity to default starting values for a new game.</summary>
+        public void ResetStats()
+        {
+            quality          = 20;
+            speed            = 15;
+            reasoning        = 10;
+            creativity       = 12;
+            reliability      = 25;
+            learning         = 5;
+            computeCapacity  = 10;
+            energyCapacity   = 20;
+
+            OnComputeChanged?.Invoke(computeCapacity);
+            OnEnergyChanged?.Invoke(energyCapacity);
+            Debug.Log("[AICore] Stats reset to default starting values.");
+        }
     }
 }

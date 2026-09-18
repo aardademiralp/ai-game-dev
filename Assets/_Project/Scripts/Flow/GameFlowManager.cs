@@ -39,6 +39,8 @@ namespace GameDevStudio.Flow
 
         public void StartNewGame(string companyName, DifficultyType difficulty)
         {
+            ResetRuntimeState();
+
             CompanyName = companyName;
             DifficultyManager.Instance?.SetDifficulty(difficulty);
 
@@ -50,6 +52,40 @@ namespace GameDevStudio.Flow
             GameStateManager.Instance?.GoGameplay();
 
             Debug.Log($"[GameFlow] New game — Company:'{companyName}' Difficulty:{difficulty} StartMoney:${startMoney}");
+        }
+
+        /// <summary>
+        /// Resets all in-memory runtime systems to default states for a clean New Game.
+        /// Does NOT modify or touch any save files on disk.
+        /// </summary>
+        private void ResetRuntimeState()
+        {
+            Debug.Log("[GameFlow] Starting ResetRuntimeState for New Game...");
+
+            // 1. Office Furniture & Grid Cleanup
+            Office.FurniturePlacer.Instance?.ClearAllPlacedFurniture();
+
+            // 2. Employees & Workstations Cleanup
+            Characters.EmployeeManager.Instance?.ClearAllEmployees();
+
+            // 3. Office Level Reset (6x6 starter office)
+            Office.OfficeManager.Instance?.ResetToDefault();
+
+            // 4. Game Time Reset (Day 1 08:00)
+            Core.GameTimeManager.Instance?.ResetState();
+
+            // 5. AI Core Stats Reset
+            AI.AICore.Instance?.ResetStats();
+
+            // 6. Technology Tree & Research Managers Reset
+            AI.TechnologyDatabase.Instance?.ResetToDefault();
+            AI.TechnologyResearchManager.Instance?.ResetState();
+            AI.ResearchManager.Instance?.ResetState();
+
+            // 7. Product Development Manager Reset
+            Products.ProductDevelopmentManager.Instance?.ResetState();
+
+            Debug.Log("[GameFlow] ResetRuntimeState completed cleanly.");
         }
 
         public void ResumeSave(int slot)

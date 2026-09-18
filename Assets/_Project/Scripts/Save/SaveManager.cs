@@ -204,6 +204,12 @@ namespace GameDevStudio.Save
                 }
             }
 
+            // Product Development
+            if (Products.ProductDevelopmentManager.Instance != null)
+            {
+                data.ProductDevelopment = Products.ProductDevelopmentManager.Instance.GatherSaveData();
+            }
+
             // AI Core
             if (AICore.Instance != null)
             {
@@ -273,19 +279,23 @@ namespace GameDevStudio.Save
             if (EmployeeManager.Instance != null)
                 EmployeeManager.Instance.LoadEmployees(data.Employees);
 
-            // 8. AI Core Stats
+            // 8. Product Development (restored after employees and workstations are initialized)
+            if (Products.ProductDevelopmentManager.Instance != null)
+                Products.ProductDevelopmentManager.Instance.LoadState(data.ProductDevelopment);
+
+            // 9. AI Core Stats
             if (AICore.Instance != null)
                 AICore.Instance.LoadStats(data.AICore);
 
-            // 9. Completed Technologies
+            // 10. Completed Technologies
             if (TechnologyDatabase.Instance != null)
                 TechnologyDatabase.Instance.LoadStates(data.Technology);
 
-            // 10. Active Research
+            // 11. Active Research
             if (TechnologyResearchManager.Instance != null)
                 TechnologyResearchManager.Instance.LoadActiveResearch(data.Technology.ActiveTechId, data.Technology.ActiveProgress);
 
-            // 11. Gameplay State Resume
+            // 12. Gameplay State Resume
             GameStateManager.Instance?.GoGameplay();
         }
 

@@ -105,5 +105,12 @@ namespace GameDevStudio.AI
                 }
             }
         }
+
+        /// <summary>Clears employee research assignments for a new game.</summary>
+        public void ResetState()
+        {
+            _assignments.Clear();
+            Debug.Log("[ResearchManager] Cleared employee research assignments.");
+        }
     }
 }

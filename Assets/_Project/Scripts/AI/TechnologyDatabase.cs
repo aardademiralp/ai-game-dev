@@ -442,5 +442,14 @@ namespace GameDevStudio.AI
             RefreshAvailability();
             Debug.Log($"[TechDB] States loaded from save. Capabilities: {_unlockedCapabilities.Count}");
         }
+
+        /// <summary>Resets technology tree states and unlocked capabilities back to default starting state for a new game.</summary>
+        public void ResetToDefault()
+        {
+            _unlockedCapabilities.Clear();
+            BuildTechnologyTree();
+            RefreshAvailability();
+            Debug.Log("[TechDB] Reset technology tree and capabilities to default.");
+        }
     }
 }

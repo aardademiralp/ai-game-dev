@@ -104,6 +104,30 @@ namespace GameDevStudio.Characters
             return null;
         }
 
+        /// <summary>Destroys all active employee GameObjects and clears workstation and chair assignments for a new game.</summary>
+        public void ClearAllEmployees()
+        {
+            for (int i = Employees.Count - 1; i >= 0; i--)
+            {
+                if (Employees[i] != null && Employees[i].gameObject != null)
+                {
+                    Destroy(Employees[i].gameObject);
+                }
+            }
+            Employees.Clear();
+
+            foreach (var ws in Workstations)
+            {
+                if (ws != null) ws.Unassign();
+            }
+            foreach (var chair in ChairMarker.AllChairs)
+            {
+                if (chair != null) chair.IsOccupied = false;
+            }
+
+            Debug.Log("[EmployeeManager] Cleared all employees, workstations, and chairs for new game.");
+        }
+
         /// <summary>Called by SaveManager when loading a save. Destroys current employees and respawns from data at saved grid coordinates & workstations.</summary>
         public void LoadEmployees(System.Collections.Generic.List<Save.EmployeeSaveEntry> entries)
         {

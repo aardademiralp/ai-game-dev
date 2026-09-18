@@ -134,6 +134,15 @@ namespace GameDevStudio.Office
             OnOfficeExpanded?.Invoke();
         }
 
+        /// <summary>Resets office level to default starter office (Level 0: 6x6, capacity 2) for a new game.</summary>
+        public void ResetToDefault()
+        {
+            CurrentLevelIndex = 0;
+            ApplyPhysicalExpansion();
+            OnOfficeExpanded?.Invoke();
+            Debug.Log("[OfficeManager] Reset to default starter office (Level 1: 6x6).");
+        }
+
         private void ApplyPhysicalExpansion()
         {
             var config = CurrentConfig;

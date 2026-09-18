@@ -221,5 +221,17 @@ namespace GameDevStudio.AI
             float remainingRealSec = remaining * totalRealSec / empMult;
             return remainingRealSec / 144f;
         }
+
+        /// <summary>Resets active research slot for a new game.</summary>
+        public void ResetState()
+        {
+            if (ActiveResearch != null && ActiveResearch.IsResearching)
+            {
+                ActiveResearch.State = TechState.Available;
+                ActiveResearch.ResearchProgress = 0f;
+            }
+            ActiveResearch = null;
+            Debug.Log("[TechResearch] Reset active research slot.");
+        }
     }
 }

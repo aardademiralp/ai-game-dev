@@ -184,5 +184,22 @@ namespace GameDevStudio.Core
             OnDayChanged?.Invoke(CurrentDay);
             OnSpeedChanged?.Invoke(CurrentSpeedMultiplier);
         }
+
+        /// <summary>Resets time state to default starting values for a new game.</summary>
+        public void ResetState()
+        {
+            CurrentDay             = startDay;
+            CurrentHour            = startHour;
+            CurrentMinute          = startMinute;
+            _minuteAccumulator     = 0f;
+            CurrentSpeedMultiplier = 1.0f;
+            IsPaused               = true;
+
+            OnTimeChanged?.Invoke(CurrentHour, CurrentMinute);
+            OnDayChanged?.Invoke(CurrentDay);
+            OnSpeedChanged?.Invoke(CurrentSpeedMultiplier);
+            OnPauseChanged?.Invoke(IsPaused);
+            Debug.Log($"[GameTimeManager] Reset to Day {CurrentDay} {GetFormattedTime()} (1.0x, Paused)");
+        }
     }
 }

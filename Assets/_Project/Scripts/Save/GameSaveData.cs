@@ -90,6 +90,32 @@ namespace GameDevStudio.Save
         public float  ActiveProgress = 0f;
     }
 
+    [Serializable]
+    public class ProductDevelopmentSaveData
+    {
+        public string       ActiveProductId        = "";
+        public float        ActiveProgress         = 0f;
+        public int          DevelopmentState       = 0;
+        public float        AccumulatedQuality     = 0f;
+        public int          TotalCostSpent         = 0;
+        public float        ElapsedDevelopmentDays = 0f;
+        public List<string> AssignedEmployeeIds    = new List<string>();
+        public List<string> UsedTechnologyIds      = new List<string>();
+        public List<CompletedProductSaveEntry> CompletedProducts = new List<CompletedProductSaveEntry>();
+    }
+
+    [Serializable]
+    public class CompletedProductSaveEntry
+    {
+        public string ProductId;
+        public string ProductName;
+        public int    ProductType;
+        public int    FinalQuality;
+        public int    CompletionDay;
+        public int    TotalCostSpent;
+        public float  TotalDevelopmentDays;
+    }
+
     // ── Root save container ───────────────────────────────────────────────────
 
     [Serializable]
@@ -99,13 +125,14 @@ namespace GameDevStudio.Save
         public string SaveDate    = "";         // ISO-8601 string
         public int    PlaytimeSeconds = 0;      // Future: total playtime
 
-        public CompanySaveData          Company    = new CompanySaveData();
-        public GameTimeSaveData         GameTime   = new GameTimeSaveData();
-        public OfficeSaveData           Office     = new OfficeSaveData();
-        public List<FurnitureSaveEntry> Furniture  = new List<FurnitureSaveEntry>();
-        public List<EmployeeSaveEntry>  Employees  = new List<EmployeeSaveEntry>();
-        public AICoreSaveData           AICore     = new AICoreSaveData();
-        public TechnologySaveData       Technology = new TechnologySaveData();
+        public CompanySaveData             Company            = new CompanySaveData();
+        public GameTimeSaveData            GameTime           = new GameTimeSaveData();
+        public OfficeSaveData              Office             = new OfficeSaveData();
+        public List<FurnitureSaveEntry>    Furniture          = new List<FurnitureSaveEntry>();
+        public List<EmployeeSaveEntry>     Employees          = new List<EmployeeSaveEntry>();
+        public ProductDevelopmentSaveData ProductDevelopment = new ProductDevelopmentSaveData();
+        public AICoreSaveData              AICore             = new AICoreSaveData();
+        public TechnologySaveData          Technology         = new TechnologySaveData();
 
         // ── Slot metadata (for Load screen display) ───────────────────────────
         public string DisplayCompanyName => Company?.CompanyName ?? "Unknown";

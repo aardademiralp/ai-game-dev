@@ -9,6 +9,7 @@ using GameDevStudio.AI;
 using GameDevStudio.Flow;
 using GameDevStudio.Save;
 using GameDevStudio.Localization;
+using GameDevStudio.Products;
 
 namespace GameDevStudio.Core
 {
@@ -54,6 +55,7 @@ namespace GameDevStudio.Core
             SetupEmployeeManager();  // Aşama 5 — çalışan sistemi
             SetupAISystem();         // Aşama 6 — AI Core & Research
             SetupRecruitmentSystem(); // Aşama 6 — Recruitment & UI
+            SetupProductSystem();    // Product Development & Product UI
         }
 
         // ── Flow Systems (boot-first) ────────────────────────
@@ -241,6 +243,19 @@ namespace GameDevStudio.Core
                 go.AddComponent<RecruitmentUI>();
                 go.AddComponent<ResearchUI>();
                 Debug.Log("[SceneInitializer] RecruitmentSystem (RecruitmentManager + UI) created.");
+            }
+        }
+
+        // ── Product Development System ──────────────────────
+        private void SetupProductSystem()
+        {
+            if (ProductDevelopmentManager.Instance == null && FindFirstObjectByType<ProductDevelopmentManager>() == null)
+            {
+                GameObject go = new GameObject("ProductSystem");
+                go.AddComponent<ProductDatabase>();
+                go.AddComponent<ProductDevelopmentManager>();
+                go.AddComponent<ProductUI>();
+                Debug.Log("[SceneInitializer] ProductSystem (ProductDatabase + ProductDevelopmentManager + ProductUI) created.");
             }
         }
 
