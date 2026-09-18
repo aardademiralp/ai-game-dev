@@ -65,6 +65,17 @@ namespace GameDevStudio.Save
     }
 
     [Serializable]
+    public class FurnitureSaveEntry
+    {
+        public string FurnitureId;
+        public int    GridX;
+        public int    GridZ;
+        public int    Rotation;       // 0, 1, 2, 3 (0°, 90°, 180°, 270°)
+        public int    VariantIndex;   // variant or level
+        public string InstanceId;     // unique instance identifier
+    }
+
+    [Serializable]
     public class TechnologyStateSaveEntry
     {
         public string TechId;
@@ -88,12 +99,13 @@ namespace GameDevStudio.Save
         public string SaveDate    = "";         // ISO-8601 string
         public int    PlaytimeSeconds = 0;      // Future: total playtime
 
-        public CompanySaveData    Company    = new CompanySaveData();
-        public GameTimeSaveData   GameTime   = new GameTimeSaveData();
-        public OfficeSaveData     Office     = new OfficeSaveData();
-        public List<EmployeeSaveEntry> Employees = new List<EmployeeSaveEntry>();
-        public AICoreSaveData     AICore     = new AICoreSaveData();
-        public TechnologySaveData Technology = new TechnologySaveData();
+        public CompanySaveData          Company    = new CompanySaveData();
+        public GameTimeSaveData         GameTime   = new GameTimeSaveData();
+        public OfficeSaveData           Office     = new OfficeSaveData();
+        public List<FurnitureSaveEntry> Furniture  = new List<FurnitureSaveEntry>();
+        public List<EmployeeSaveEntry>  Employees  = new List<EmployeeSaveEntry>();
+        public AICoreSaveData           AICore     = new AICoreSaveData();
+        public TechnologySaveData       Technology = new TechnologySaveData();
 
         // ── Slot metadata (for Load screen display) ───────────────────────────
         public string DisplayCompanyName => Company?.CompanyName ?? "Unknown";

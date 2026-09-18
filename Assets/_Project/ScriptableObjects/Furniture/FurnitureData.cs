@@ -13,8 +13,11 @@ namespace GameDevStudio.Office
     public class FurnitureData : ScriptableObject
     {
         [Header("Identity")]
+        public string        id            = "";
         public string        furnitureName = "Furniture";
         public FurnitureType furnitureType = FurnitureType.Desk;
+
+        public string Id => !string.IsNullOrEmpty(id) ? id : furnitureName;
 
         [Header("Grid Footprint (cells)")]
         public int sizeX = 1;   // width along X axis

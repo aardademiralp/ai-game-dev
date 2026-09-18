@@ -145,6 +145,12 @@ namespace GameDevStudio.Save
                 data.Office.CurrentLevelIndex = OfficeManager.Instance.CurrentLevelIndex;
             }
 
+            // Furniture
+            if (FurniturePlacer.Instance != null)
+            {
+                data.Furniture = FurniturePlacer.Instance.GatherSaveData();
+            }
+
             // Employees
             OfficeGrid officeGrid = FindFirstObjectByType<OfficeGrid>();
 
@@ -255,27 +261,31 @@ namespace GameDevStudio.Save
                 Core.GameTimeManager.Instance.LoadState(data.GameTime.Day, data.GameTime.Hour,
                                                         data.GameTime.Minute, data.GameTime.SpeedMultiplier);
 
-            // 5. Office Level (physical floor & grid resize)
+            // 5. Office Level (physical floor & grid resize: Office → OfficeGrid)
             if (OfficeManager.Instance != null)
                 OfficeManager.Instance.LoadLevelIndex(data.Office.CurrentLevelIndex);
 
-            // 6. Employees & Positions
+            // 6. Furniture (placed on grid before employees spawn)
+            if (FurniturePlacer.Instance != null)
+                FurniturePlacer.Instance.LoadFurniture(data.Furniture);
+
+            // 7. Employees & Workstation Assignments
             if (EmployeeManager.Instance != null)
                 EmployeeManager.Instance.LoadEmployees(data.Employees);
 
-            // 7. AI Core Stats
+            // 8. AI Core Stats
             if (AICore.Instance != null)
                 AICore.Instance.LoadStats(data.AICore);
 
-            // 8. Completed Technologies
+            // 9. Completed Technologies
             if (TechnologyDatabase.Instance != null)
                 TechnologyDatabase.Instance.LoadStates(data.Technology);
 
-            // 9. Active Research
+            // 10. Active Research
             if (TechnologyResearchManager.Instance != null)
                 TechnologyResearchManager.Instance.LoadActiveResearch(data.Technology.ActiveTechId, data.Technology.ActiveProgress);
 
-            // 10. Gameplay State Resume
+            // 11. Gameplay State Resume
             GameStateManager.Instance?.GoGameplay();
         }
 

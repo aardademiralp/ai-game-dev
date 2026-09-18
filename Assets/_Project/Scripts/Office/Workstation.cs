@@ -12,7 +12,7 @@ namespace GameDevStudio.Office
 
         public bool IsAssigned => AssignedEmployee != null;
 
-        private void Start()
+        private void OnEnable()
         {
             if (EmployeeManager.Instance != null)
             {
@@ -20,7 +20,7 @@ namespace GameDevStudio.Office
             }
         }
 
-        private void OnDestroy()
+        private void OnDisable()
         {
             if (EmployeeManager.Instance != null)
             {

@@ -1,10 +1,13 @@
 using UnityEngine;
 using UnityEngine.InputSystem;
+using System;
+using System.Collections.Generic;
+using GameDevStudio.Save;
 
 namespace GameDevStudio.Office
 {
     /// <summary>
-    /// Handles furniture placement on the office grid.
+    /// Handles furniture placement on the office grid and manages furniture save/load persistence.
     /// Created by SceneInitializer alongside OfficeGrid.
     ///
     /// Keys:
@@ -15,6 +18,8 @@ namespace GameDevStudio.Office
     /// </summary>
     public class FurniturePlacer : MonoBehaviour
     {
+        public static FurniturePlacer Instance { get; private set; }
+
         // ── Static flag so GridInputHandler can yield during placement ────
         public static bool IsPlacing { get; private set; }
 
@@ -26,6 +31,9 @@ namespace GameDevStudio.Office
         private FurnitureData[] _catalog;
         private FurnitureData   _selected;
         private int             _rotation;          // 0-3 (×90°)
+
+        private readonly List<PlacedFurniture> _placedFurnitureList = new List<PlacedFurniture>();
+        public IReadOnlyList<PlacedFurniture> PlacedFurnitureList => _placedFurnitureList;
 
         // ── Preview ───────────────────────────────────────────────────────
         private GameObject  _previewGo;
@@ -45,6 +53,13 @@ namespace GameDevStudio.Office
         // ─────────────────────────────────────────────────────────────────
         private void Awake()
         {
+            if (Instance != null && Instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
+            Instance = this;
+
             _catalog = BuildDefaultCatalog();
 
             _mousePos = new InputAction("FP_Pos",  InputActionType.Value,  "<Mouse>/position");
@@ -70,6 +85,8 @@ namespace GameDevStudio.Office
 
         private void OnDestroy()
         {
+            if (Instance == this) Instance = null;
+
             _mousePos?.Dispose(); _lmb?.Dispose(); _rmb?.Dispose();
             _key1?.Dispose();     _key2?.Dispose(); _key3?.Dispose();
             _keyR?.Dispose();     _keyEsc?.Dispose(); _keyB?.Dispose();
@@ -249,32 +266,43 @@ namespace GameDevStudio.Office
             for (int dz = 0; dz < fh; dz++)
                 _grid.Data.GetCell(gx + dx, gz + dz).State = CellState.Occupied;
 
-            // Spawn permanent visual
-            SpawnFurnitureVisual(gx, gz, fw, fh);
+            // Spawn permanent visual and attach persistence tracking
+            SpawnFurnitureVisual(_selected, gx, gz, _rotation, 0);
 
             Debug.Log($"[FurniturePlacer] Placed '{_selected.furnitureName}' at grid ({gx},{gz}).");
         }
 
-        private void SpawnFurnitureVisual(int gx, int gz, int fw, int fh)
+        /// <summary>
+        /// Instantiates furniture visual mesh/prefab, configures NavMeshObstacle, Workstation/ChairMarker,
+        /// and attaches PlacedFurniture component for runtime persistence.
+        /// </summary>
+        public GameObject SpawnFurnitureVisual(FurnitureData data, int gx, int gz, int rotation, int variantIndex = 0)
         {
+            if (_grid == null) _grid = FindFirstObjectByType<OfficeGrid>();
+
+            bool swapped = rotation % 2 != 0;
+            int fw = swapped ? data.sizeZ : data.sizeX;
+            int fh = swapped ? data.sizeX : data.sizeZ;
+
             GameObject go;
-            if (_selected.prefab != null)
+            if (data.prefab != null)
             {
-                go = Instantiate(_selected.prefab);
+                go = Instantiate(data.prefab);
             }
             else
             {
-                go = FurnitureModelBuilder.CreateModel(_selected.furnitureType);
+                go = FurnitureModelBuilder.CreateModel(data.furnitureType);
             }
 
-            go.name = _selected.furnitureName;
+            go.name = data.furnitureName;
 
+            Vector3 origin = _grid != null ? _grid.Origin : Vector3.zero;
             go.transform.position = new Vector3(
-                _grid.Origin.x + gx + fw * 0.5f,
-                _grid.Origin.y,
-                _grid.Origin.z + gz + fh * 0.5f);
+                origin.x + gx + fw * 0.5f,
+                origin.y,
+                origin.z + gz + fh * 0.5f);
 
-            go.transform.rotation = Quaternion.Euler(0f, _rotation * 90f, 0f);
+            go.transform.rotation = Quaternion.Euler(0f, rotation * 90f, 0f);
 
             FurnitureModelBuilder.RemoveColliders(go);
 
@@ -284,13 +312,203 @@ namespace GameDevStudio.Office
             obstacle.size = new Vector3(fw * 0.85f, 1f, fh * 0.85f);
 
             // Attach Workstation if Computer, or ChairMarker if Chair
-            if (_selected.furnitureType == FurnitureType.Computer)
+            if (data.furnitureType == FurnitureType.Computer)
             {
                 go.AddComponent<Workstation>();
             }
-            else if (_selected.furnitureType == FurnitureType.Chair)
+            else if (data.furnitureType == FurnitureType.Chair)
             {
                 go.AddComponent<ChairMarker>();
+            }
+
+            // Attach PlacedFurniture persistence component
+            var pf = go.AddComponent<PlacedFurniture>();
+            pf.FurnitureId  = data.Id;
+            pf.GridX        = gx;
+            pf.GridZ        = gz;
+            pf.Rotation     = rotation;
+            pf.VariantIndex = variantIndex;
+            pf.InstanceId   = $"FURN_{gx}_{gz}";
+            pf.Data         = data;
+
+            _placedFurnitureList.Add(pf);
+            return go;
+        }
+
+        // ── Catalog Lookup ────────────────────────────────────────────────
+        public FurnitureData GetFurnitureDataById(string id)
+        {
+            if (string.IsNullOrEmpty(id)) return null;
+
+            if (_catalog != null)
+            {
+                foreach (var item in _catalog)
+                {
+                    if (item == null) continue;
+                    if (string.Equals(item.Id, id, StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(item.furnitureName, id, StringComparison.OrdinalIgnoreCase))
+                    {
+                        return item;
+                    }
+                }
+            }
+            return null;
+        }
+
+        // ── Save / Load System ───────────────────────────────────────────
+
+        /// <summary>
+        /// Gathers save data entries for all placed furniture on the office grid.
+        /// </summary>
+        public List<FurnitureSaveEntry> GatherSaveData()
+        {
+            _placedFurnitureList.RemoveAll(pf => pf == null);
+
+            var list = new List<FurnitureSaveEntry>();
+            foreach (var pf in _placedFurnitureList)
+            {
+                if (pf == null) continue;
+                list.Add(new FurnitureSaveEntry
+                {
+                    FurnitureId  = pf.FurnitureId,
+                    GridX        = pf.GridX,
+                    GridZ        = pf.GridZ,
+                    Rotation     = pf.Rotation,
+                    VariantIndex = pf.VariantIndex,
+                    InstanceId   = pf.InstanceId
+                });
+            }
+            return list;
+        }
+
+        /// <summary>
+        /// Clears existing furniture and recreates furniture from loaded save entries.
+        /// </summary>
+        public void LoadFurniture(List<FurnitureSaveEntry> entries)
+        {
+            ClearAllPlacedFurniture();
+
+            if (entries == null || entries.Count == 0)
+            {
+                Debug.Log("[FurniturePlacer] No furniture entries to load.");
+                return;
+            }
+
+            _grid = FindFirstObjectByType<OfficeGrid>();
+            if (_grid == null || _grid.Data == null)
+            {
+                Debug.LogError("[FurniturePlacer] OfficeGrid missing during furniture load!");
+                return;
+            }
+
+            int loadedCount = 0;
+            HashSet<string> occupiedCellKeys = new HashSet<string>();
+
+            foreach (var entry in entries)
+            {
+                if (entry == null) continue;
+
+                // Lookup furniture data by ID safely; skip invalid / missing IDs without breaking save file
+                FurnitureData data = GetFurnitureDataById(entry.FurnitureId);
+                if (data == null)
+                {
+                    Debug.LogWarning($"[FurniturePlacer] Invalid or missing furniture ID '{entry.FurnitureId}'. Skipping entry gracefully.");
+                    continue;
+                }
+
+                int gx  = entry.GridX;
+                int gz  = entry.GridZ;
+                int rot = entry.Rotation % 4;
+
+                bool swapped = rot % 2 != 0;
+                int fw = swapped ? data.sizeZ : data.sizeX;
+                int fh = swapped ? data.sizeX : data.sizeZ;
+
+                // Validate bounds
+                bool outOfBounds = false;
+                for (int dx = 0; dx < fw; dx++)
+                {
+                    for (int dz = 0; dz < fh; dz++)
+                    {
+                        if (!_grid.Data.IsValid(gx + dx, gz + dz))
+                        {
+                            outOfBounds = true;
+                            break;
+                        }
+                    }
+                    if (outOfBounds) break;
+                }
+
+                if (outOfBounds)
+                {
+                    Debug.LogWarning($"[FurniturePlacer] Furniture '{entry.FurnitureId}' at ({gx},{gz}) is out of grid bounds. Skipping.");
+                    continue;
+                }
+
+                // Check for duplicate placement overlap during load
+                bool cellOverlap = false;
+                for (int dx = 0; dx < fw; dx++)
+                {
+                    for (int dz = 0; dz < fh; dz++)
+                    {
+                        string cellKey = $"{gx + dx}_{gz + dz}";
+                        if (occupiedCellKeys.Contains(cellKey))
+                        {
+                            cellOverlap = true;
+                            break;
+                        }
+                    }
+                    if (cellOverlap) break;
+                }
+
+                if (cellOverlap)
+                {
+                    Debug.LogWarning($"[FurniturePlacer] Furniture '{entry.FurnitureId}' at ({gx},{gz}) overlaps another loaded furniture. Skipping duplicate.");
+                    continue;
+                }
+
+                // Mark grid cells Occupied and store cell keys
+                for (int dx = 0; dx < fw; dx++)
+                {
+                    for (int dz = 0; dz < fh; dz++)
+                    {
+                        int cx = gx + dx;
+                        int cz = gz + dz;
+                        _grid.Data.GetCell(cx, cz).State = CellState.Occupied;
+                        occupiedCellKeys.Add($"{cx}_{cz}");
+                    }
+                }
+
+                // Spawn visual object & components
+                SpawnFurnitureVisual(data, gx, gz, rot, entry.VariantIndex);
+                loadedCount++;
+            }
+
+            Debug.Log($"[FurniturePlacer] Loaded {loadedCount}/{entries.Count} furniture items.");
+        }
+
+        /// <summary>
+        /// Destroys all currently placed furniture GameObjects and resets internal registry.
+        /// </summary>
+        public void ClearAllPlacedFurniture()
+        {
+            foreach (var pf in _placedFurnitureList)
+            {
+                if (pf != null && pf.gameObject != null)
+                {
+                    Destroy(pf.gameObject);
+                }
+            }
+            _placedFurnitureList.Clear();
+
+            // Safety check for any stray PlacedFurniture components in scene
+            PlacedFurniture[] stray = FindObjectsByType<PlacedFurniture>(FindObjectsSortMode.None);
+            foreach (var pf in stray)
+            {
+                if (pf != null && pf.gameObject != null)
+                {
+                    Destroy(pf.gameObject);
+                }
             }
         }
 
@@ -347,6 +565,7 @@ namespace GameDevStudio.Office
                                                 Color color, float height)
         {
             var d = ScriptableObject.CreateInstance<FurnitureData>();
+            d.id             = name;
             d.furnitureName  = name;
             d.furnitureType  = type;
             d.sizeX          = sx;
